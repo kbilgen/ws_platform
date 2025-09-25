@@ -1,9 +1,20 @@
-// db.js — Supabase Postgres CRUD (sağlamlaştırılmış)
+// db.js — Supabase Postgres CRUD (debug version)
 const { Pool } = require('pg');
+
+// DEBUG: Environment variables'ları logla
+console.log('=== ENV DEBUG ===');
+console.log('SUPABASE_DB_URL exists:', !!process.env.SUPABASE_DB_URL);
+console.log('DATABASE_URL exists:', !!process.env.DATABASE_URL);
+console.log('SUPABASE_DB_URL length:', process.env.SUPABASE_DB_URL?.length || 0);
+console.log('DATABASE_URL length:', process.env.DATABASE_URL?.length || 0);
+console.log('=================');
 
 // 1) Bağlantı dizesini ENV'den oku (SUPABASE_DB_URL öncelikli, yoksa DATABASE_URL)
 const RAW_CONN =
   (process.env.SUPABASE_DB_URL || process.env.DATABASE_URL || '').trim();
+
+console.log('Final RAW_CONN length:', RAW_CONN.length);
+console.log('Final RAW_CONN preview:', RAW_CONN.substring(0, 50) + '...');
 
 if (!RAW_CONN) {
   // Env yanlış/eksik ise burada patlatalım ki logdan hemen görülsün
