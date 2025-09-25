@@ -1,6 +1,5 @@
 FROM node:20-bullseye
 
-# Chromium ve bağımlılıkları
 RUN apt-get update && apt-get install -y \
     chromium ca-certificates fonts-liberation \
     --no-install-recommends && rm -rf /var/lib/apt/lists/*
@@ -13,9 +12,7 @@ COPY package*.json ./
 RUN npm ci --only=production
 COPY . .
 
-# Railway volume için
-RUN mkdir -p /data/session
-VOLUME ["/data"]
+# Bu satırı kaldır: VOLUME ["/data"]
 
 EXPOSE 3000
 CMD ["node","index.js"]
