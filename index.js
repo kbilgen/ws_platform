@@ -1,4 +1,5 @@
-// index.js — Multi-Account WhatsApp bot (admin login, QR, per-session API/Webhook)
+// index.js — Multi-Account WhatsApp bot (admin login, QR, per-session API/Webhook, SSE)
+// Env: ADMIN_USER, ADMIN_PASS, DATA_DIR=/data, SESSION_DIR=/data/sessions, PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium
 // npm i express body-parser dotenv axios better-sqlite3 whatsapp-web.js qrcode
 
 require('dotenv').config();
@@ -11,6 +12,7 @@ const axios = require('axios');
 const qrcode = require('qrcode');
 const fs = require('fs');
 const Database = require('better-sqlite3');
+const { EventEmitter } = require('events');
 const { Client, LocalAuth, MessageMedia } = require('whatsapp-web.js');
 
 // ====== ENV ======
@@ -51,7 +53,7 @@ const DB = {
         status=excluded.status,
         api_key=COALESCE(excluded.api_key, sessions.api_key),
         webhook_url=COALESCE(excluded.webhook_url, sessions.webhook_url),
-        webhook_secret=COALESCE(excluded.webhook_secret, sessions.webhook_secret)
+        webhook_secret=COLESCE(excluded.webhook_secret, sessions.webhook_secret)
     `).run(s);
   },
   setStatus(id, status) {
@@ -74,20 +76,15 @@ const DB = {
   }
 };
 
-// ====== Çoklu Client Yönetimi ======
-/**
- * clients: Map<sessionId, { client: Client, qr: dataURL|null, ready: boolean }>
- */
-const clients = new Map();
+// ====== Çoklu Client + SSE ======
+const clients = new Map(); // sessionId -> { client, qr, ready }
+const events = new EventEmitter();
 
-function randomKey(len = 24) {
-  return crypto.randomBytes(len).toString('hex');
-}
-function hmac(secret, bodyStr) {
-  if (!secret) return '';
-  return crypto.createHmac('sha256', secret).update(bodyStr, 'utf8').digest('hex');
-}
-async function sendWebhook(sessionId, event, data) {
+const randomKey = (len = 24) => crypto.randomBytes(len).toString('hex');
+const hmac = (secret, bodyStr) =>
+  !secret ? '' : crypto.createHmac('sha256', secret).update(bodyStr, 'utf8').digest('hex');
+
+async function postWebhook(sessionId, event, data) {
   const s = DB.get(sessionId);
   if (!s?.webhook_url) return;
   const payload = { sessionId, event, data, ts: Date.now() };
@@ -104,17 +101,9 @@ async function sendWebhook(sessionId, event, data) {
 }
 
 async function createSession({ id, name }) {
-  // whatsapp-web.js her clientId için LocalAuth altına ayrı klasör açar.
   const client = new Client({
-    authStrategy: new LocalAuth({
-      dataPath: SESSION_DIR,
-      clientId: id
-    }),
-    puppeteer: {
-      headless: true,
-      args: ['--no-sandbox', '--disable-setuid-sandbox'],
-      executablePath: EXEC_PATH
-    }
+    authStrategy: new LocalAuth({ dataPath: SESSION_DIR, clientId: id }),
+    puppeteer: { headless: true, args: ['--no-sandbox', '--disable-setuid-sandbox'], executablePath: EXEC_PATH }
   });
 
   clients.set(id, { client, qr: null, ready: false });
@@ -124,39 +113,40 @@ async function createSession({ id, name }) {
     const e = clients.get(id);
     if (e) e.qr = dataUrl;
     DB.setStatus(id, 'pending');
+    events.emit('status', { sessionId: id, status: 'pending' });
   });
 
   client.on('ready', async () => {
     const e = clients.get(id);
     if (e) { e.ready = true; e.qr = null; }
     DB.setStatus(id, 'ready');
-    await sendWebhook(id, 'ready', {});
+    events.emit('status', { sessionId: id, status: 'ready' });
+    await postWebhook(id, 'ready', {});
   });
 
   client.on('disconnected', async (reason) => {
     const e = clients.get(id);
     if (e) e.ready = false;
     DB.setStatus(id, 'disconnected');
-    await sendWebhook(id, 'disconnected', { reason });
-    client.initialize(); // otomatik reconnect
+    events.emit('status', { sessionId: id, status: 'disconnected', reason });
+    await postWebhook(id, 'disconnected', { reason });
+    client.initialize(); // auto-reconnect
   });
 
   client.on('message', async (msg) => {
-    await sendWebhook(id, 'message', {
+    const payload = {
+      sessionId: id,
       from: msg.from, to: msg.to, body: msg.body, isGroup: msg.isGroup, timestamp: msg.timestamp
-    });
+    };
+    events.emit('message', payload);
+    await postWebhook(id, 'message', payload);
   });
 
   client.initialize();
 
-  // DB kaydı (ilk değerler)
   DB.upsertSession({
-    id,
-    name: name || id,
-    status: 'pending',
-    api_key: null,
-    webhook_url: null,
-    webhook_secret: null,
+    id, name: name || id, status: 'pending',
+    api_key: null, webhook_url: null, webhook_secret: null,
     created_at: Date.now()
   });
 
@@ -165,28 +155,24 @@ async function createSession({ id, name }) {
 
 function destroySession(id) {
   const e = clients.get(id);
-  if (e) {
-    try { e.client.destroy(); } catch {}
-    clients.delete(id);
-  }
-  // LocalAuth klasörlerini elle silmiyoruz; istenirse eklenebilir
+  if (e) { try { e.client.destroy(); } catch {} clients.delete(id); }
   DB.del(id);
 }
 
-function requireClient(id) {
+function ensureClient(id) {
   const e = clients.get(id);
   if (!e) throw new Error('session not found');
   return e.client;
 }
 
 async function sendText(sessionId, to, text) {
-  const client = requireClient(sessionId);
+  const client = ensureClient(sessionId);
   const chatId = to.includes('@') ? to : `${to}@c.us`;
   return client.sendMessage(chatId, text);
 }
 
 async function sendMedia(sessionId, { to, caption, base64, filename, mime }) {
-  const client = requireClient(sessionId);
+  const client = ensureClient(sessionId);
   let b64 = (base64 || '').trim();
   const m = b64.match(/^data:(.+);base64,(.*)$/);
   if (m) { mime = m[1]; b64 = m[2]; }
@@ -198,11 +184,9 @@ async function sendMedia(sessionId, { to, caption, base64, filename, mime }) {
 // ====== Express App ======
 const app = express();
 app.use(bodyParser.json({ limit: '20mb' }));
-
-// (Opsiyonel) public klasörün varsa sun (login/admin html’lerini koyabilirsin)
 app.use(express.static(path.join(__dirname, 'public')));
 
-// Basit admin header auth:  X-Admin-Auth: base64("user:pass")
+// Admin auth — dinamik (env) kullanıcı/şifre, statik gömülü yok
 function adminAuth(req, res, next) {
   const h = req.headers['x-admin-auth'];
   if (!h) return res.status(401).json({ ok: false, error: 'admin auth required' });
@@ -211,7 +195,7 @@ function adminAuth(req, res, next) {
   return res.status(401).json({ ok: false, error: 'invalid admin creds' });
 }
 
-// API-key auth (her hat için farklı anahtar)
+// Tenant API key auth — header tabanlı
 function keyAuth(req, res, next) {
   const key = req.headers['x-api-key'];
   const sid = req.params.sessionId || req.query.sessionId || req.body.sessionId;
@@ -222,15 +206,16 @@ function keyAuth(req, res, next) {
 }
 
 // ---- Admin endpoints ----
-
-// (İsteğe bağlı) basit login doğrulaması (admin panel frontendi bunu kullanabilir)
 app.post('/admin/login', (req, res) => {
   const { username, password } = req.body || {};
   if (username === ADMIN_USER && password === ADMIN_PASS) return res.json({ ok: true });
   return res.status(401).json({ ok: false, error: 'invalid creds' });
 });
 
-// Yeni session oluştur + QR üretimi başlat + anahtarları ver
+app.get('/admin/sessions', adminAuth, (req, res) => {
+  res.json({ ok: true, sessions: DB.list() });
+});
+
 app.post('/admin/sessions', adminAuth, async (req, res) => {
   const { name } = req.body || {};
   const id = 'ws_' + Date.now().toString(36);
@@ -242,19 +227,12 @@ app.post('/admin/sessions', adminAuth, async (req, res) => {
   res.json({ ok: true, id, api_key: api, webhook_secret: secret });
 });
 
-// QR sorgula (base64 png döner)
 app.get('/admin/sessions/:id/qr', adminAuth, (req, res) => {
   const e = clients.get(req.params.id);
   if (!e) return res.status(404).json({ ok: false, error: 'session not found' });
   return res.json({ ok: true, qr: e.qr, ready: e.ready });
 });
 
-// Session listesi
-app.get('/admin/sessions', adminAuth, (req, res) => {
-  res.json({ ok: true, sessions: DB.list() });
-});
-
-// Webhook ayarla/güncelle
 app.post('/admin/sessions/:id/webhook', adminAuth, (req, res) => {
   const { url } = req.body || {};
   if (!url) return res.status(400).json({ ok: false, error: 'url required' });
@@ -264,18 +242,40 @@ app.post('/admin/sessions/:id/webhook', adminAuth, (req, res) => {
   res.json({ ok: true });
 });
 
-// (Opsiyonel) Session sil
 app.delete('/admin/sessions/:id', adminAuth, (req, res) => {
   destroySession(req.params.id);
   res.json({ ok: true });
 });
 
-// ---- Per-session API ----
+// SSE — admin paneline canlı mesaj & durum
+// EventSource özel header gönderemediği için basit token query (base64 "user:pass") kullanıyoruz.
+app.get('/admin/events', (req, res) => {
+  const token = req.query.token || '';
+  const [u, p] = Buffer.from(token || '', 'base64').toString('utf8').split(':');
+  if (u !== ADMIN_USER || p !== ADMIN_PASS) return res.status(401).end('unauthorized');
 
-// Metin gönder
-// POST /api/:sessionId/send-text
-// headers: X-API-Key
-// body: { to: "905xxxxxxxxx" | "905xxxxxxxxx@c.us", text: "..." }
+  res.writeHead(200, {
+    'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache', Connection: 'keep-alive'
+  });
+
+  const send = (type, data) => {
+    res.write(`event: ${type}\n`);
+    res.write(`data: ${JSON.stringify(data)}\n\n`);
+  };
+
+  const onMsg = (payload) => send('message', payload);
+  const onStatus = (payload) => send('status', payload);
+
+  events.on('message', onMsg);
+  events.on('status', onStatus);
+
+  req.on('close', () => {
+    events.off('message', onMsg);
+    events.off('status', onStatus);
+  });
+});
+
+// ---- Tenant (per-session) API ----
 app.post('/api/:sessionId/send-text', keyAuth, async (req, res) => {
   try {
     const { to, text } = req.body || {};
@@ -287,10 +287,6 @@ app.post('/api/:sessionId/send-text', keyAuth, async (req, res) => {
   }
 });
 
-// Medya gönder
-// POST /api/:sessionId/send-media
-// headers: X-API-Key
-// body: { to, caption?, media: { base64, filename?, mime? } }
 app.post('/api/:sessionId/send-media', keyAuth, async (req, res) => {
   try {
     const { to, caption, media } = req.body || {};
@@ -304,15 +300,12 @@ app.post('/api/:sessionId/send-media', keyAuth, async (req, res) => {
   }
 });
 
-// Sağlık
+// Health & root
 app.get('/health', (req, res) => res.json({ ok: true, sessions: DB.list().length, live: clients.size }));
-
-// Root (isteğe bağlı: login ekranı veya basit bilgi)
 app.get('/', (req, res) => {
-  // public/login.html varsa onu gönderir, yoksa basit bir metin:
   const file = path.join(__dirname, 'public', 'login.html');
   if (fs.existsSync(file)) return res.sendFile(file);
-  res.send('WhatsApp Multi Bot — /admin endpointlerini kullanın.');
+  res.type('text').send('OK');
 });
 
-app.listen(PORT, () => console.log('HTTP server listening on :' + PORT));
+app.listen(PORT, () => console.log('HTTP listening on :' + PORT));

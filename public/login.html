@@ -1,7 +1,7 @@
 <!doctype html>
 <html lang="tr">
 <head>
-  <meta charset="utf-8">
+  <meta charset="utf-8" />
   <title>Admin Login</title>
   <style>
     body { font-family: system-ui, sans-serif; margin: 40px; }
@@ -13,18 +13,17 @@
 <body>
   <div class="card">
     <h2>Admin Girişi</h2>
-    <input id="username" value="admin" placeholder="Kullanıcı">
-    <input id="password" value="admin" type="password" placeholder="Şifre">
+    <input id="username" placeholder="Kullanıcı" />
+    <input id="password" type="password" placeholder="Şifre" />
     <button onclick="login()">Giriş</button>
     <div id="msg"></div>
   </div>
   <script>
     async function login() {
-      const u = document.getElementById('username').value;
+      const u = document.getElementById('username').value.trim();
       const p = document.getElementById('password').value;
       const r = await fetch('/admin/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username: u, password: p })
       });
       if (r.ok) {

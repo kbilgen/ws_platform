@@ -1,105 +1,398 @@
 <!doctype html>
 <html lang="tr">
 <head>
-  <meta charset="utf-8">
+  <meta charset="utf-8" />
   <title>Admin Panel</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
   <style>
-    body { font-family: system-ui, sans-serif; margin: 24px; }
-    .card { border: 1px solid #eee; border-radius: 12px; padding: 16px; margin-bottom: 16px; }
-    input, textarea, button { padding: 8px; border: 1px solid #ccc; border-radius: 8px; width: 100%; margin-bottom: 10px; }
-    button { background: #111; color: #fff; cursor: pointer; }
-    .list { max-height: 240px; overflow: auto; border: 1px solid #ddd; border-radius: 8px; padding: 8px; }
-    .item { padding: 6px; border-bottom: 1px solid #f2f2f2; cursor: pointer; }
-    .item:hover { background: #fafafa; }
-    img { max-width: 280px; margin-top: 12px; }
-    .mono { font-family: ui-monospace, monospace; }
+    :root{
+      --bg:#f8f9fb; --fg:#111; --muted:#666; --card:#fff; --line:#eaecef; --ok:#12a150; --bad:#c13232; --warn:#c47a00;
+      --pill:#eef1f5;
+    }
+    *{box-sizing:border-box}
+    body{margin:0; font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial; background:var(--bg); color:var(--fg)}
+    header{display:flex; gap:12px; align-items:center; justify-content:space-between; padding:16px 20px; border-bottom:1px solid var(--line); background:var(--card); position:sticky; top:0; z-index:10}
+    header h2{margin:0; font-weight:700}
+    .container{max-width:1100px; margin:20px auto; padding:0 16px}
+    .grid{display:grid; grid-template-columns:repeat(12,1fr); gap:16px}
+    .card{background:var(--card); border:1px solid var(--line); border-radius:12px; padding:16px}
+    .span-12{grid-column:span 12}
+    .span-8{grid-column:span 8}
+    .span-6{grid-column:span 6}
+    .span-4{grid-column:span 4}
+    .span-3{grid-column:span 3}
+    @media (max-width:1024px){ .span-8,.span-6,.span-4,.span-3{grid-column:span 12} }
+    h3{margin:6px 0 12px}
+    label{display:block; font-size:12px; color:var(--muted); margin-bottom:6px}
+    input, textarea, button{width:100%; padding:10px 12px; border-radius:10px; border:1px solid var(--line); background:#fff; color:var(--fg)}
+    textarea{min-height:92px; resize:vertical}
+    button{border:0; background:#111; color:#fff; cursor:pointer}
+    button.ghost{background:transparent; color:#111; border:1px solid var(--line)}
+    button:disabled{opacity:.6; cursor:not-allowed}
+    .row{display:flex; gap:10px; align-items:center}
+    .list{max-height:280px; overflow:auto; border:1px solid var(--line); border-radius:10px}
+    .item{padding:10px 12px; border-bottom:1px solid var(--line); cursor:pointer}
+    .item:hover{background:#fafafa}
+    .mono{font-family:ui-monospace,Menlo,monospace}
+    .pill{display:inline-flex; align-items:center; gap:6px; padding:4px 8px; border-radius:999px; background:var(--pill); font-size:12px; color:#222}
+    .pill.ok{background:#e7f6ee; color:var(--ok)}
+    .pill.bad{background:#fdeaea; color:var(--bad)}
+    .pill.warn{background:#fff3e0; color:var(--warn)}
+    img.qr{max-width:280px; border:1px solid var(--line); border-radius:8px; display:block}
+    .muted{color:var(--muted); font-size:12px}
+    .kvs{display:grid; grid-template-columns:110px 1fr; gap:6px 10px; align-items:center}
+    .right{margin-left:auto}
+    .nowrap{white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+    .toast{position:fixed; right:16px; bottom:16px; background:#111; color:#fff; padding:10px 12px; border-radius:10px; opacity:0; transform:translateY(8px); transition:.2s}
+    .toast.show{opacity:1; transform:translateY(0)}
   </style>
 </head>
 <body>
-  <h2>Admin Panel</h2>
+  <header>
+    <h2>Admin Panel</h2>
+    <div class="row">
+      <span id="statusPill" class="pill">Durum: bağlanıyor…</span>
+      <button class="ghost" id="logoutBtn" title="Çıkış">Çıkış</button>
+    </div>
+  </header>
 
-  <div class="card">
-    <button onclick="loadSessions()">Oturumları Listele</button>
-    <div id="sessionList" class="list"></div>
+  <div class="container">
+    <div class="grid">
+      <!-- Oturum Listesi -->
+      <div class="card span-8">
+        <div class="row" style="justify-content:space-between; margin-bottom:8px">
+          <h3>Oturumlar</h3>
+          <div class="row">
+            <button class="ghost" id="refreshBtn">Yenile</button>
+          </div>
+        </div>
+        <div id="sessionList" class="list"></div>
+        <div class="muted" style="margin-top:8px">Bir oturuma tıklayınca alt bölümde detayları ve QR’yi görürsün.</div>
+      </div>
+
+      <!-- Yeni Oturum -->
+      <div class="card span-4">
+        <h3>Yeni Oturum Oluştur</h3>
+        <label>İsim (opsiyonel)</label>
+        <input id="newName" placeholder="Örn: Destek Hattı">
+        <button id="createBtn">Oluştur & Anahtarları Üret</button>
+        <div id="createResp" class="muted" style="margin-top:8px"></div>
+      </div>
+
+      <!-- Seçili Oturum -->
+      <div class="card span-6">
+        <h3>Seçili Oturum</h3>
+        <div id="selectedNone" class="muted">Listeden bir oturum seç.</div>
+        <div id="selected" style="display:none">
+          <div class="kvs">
+            <div class="muted">Session ID</div><div class="row"><span id="s_id" class="mono nowrap"></span><button class="ghost right" data-copy="#s_id">Kopyala</button></div>
+            <div class="muted">Ad</div><div id="s_name"></div>
+            <div class="muted">Durum</div><div id="s_status"></div>
+            <div class="muted">API Key</div><div class="row"><span id="s_api" class="mono nowrap"></span><button class="ghost right" data-copy="#s_api">Kopyala</button></div>
+            <div class="muted">Webhook Secret</div><div class="row"><span id="s_secret" class="mono nowrap"></span><button class="ghost right" data-copy="#s_secret">Kopyala</button></div>
+          </div>
+          <div style="margin-top:12px">
+            <h4>QR / Bağlantı</h4>
+            <div id="qrBox" class="row" style="gap:12px; align-items:flex-start"></div>
+            <div class="row" style="gap:8px; margin-top:8px">
+              <button class="ghost" id="showQRBtn">QR Yenile / Göster</button>
+              <span class="muted">WhatsApp → Bağlı Cihazlar ile tara.</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Webhook + Test -->
+      <div class="card span-6">
+        <h3>Webhook ve Test</h3>
+        <label>Webhook URL</label>
+        <input id="w_url" placeholder="https://.../incoming">
+        <div class="row" style="gap:8px">
+          <button id="saveWebhookBtn">Webhook Kaydet</button>
+          <button class="ghost" id="pingWebhookBtn">Webhook Test (örnek POST)</button>
+        </div>
+        <div id="webhookResp" class="muted" style="margin-top:6px"></div>
+
+        <hr style="border:none;border-top:1px solid var(--line); margin:16px 0" />
+
+        <h4>Metin Gönder</h4>
+        <label>Alıcı (905xxxxxxxxx veya chatId)</label>
+        <input id="toText" placeholder="9053XXXXXXX">
+        <label>Mesaj</label>
+        <textarea id="msgText">Merhaba 👋</textarea>
+        <button id="sendTextBtn">Gönder</button>
+        <div id="sendTextResp" class="muted" style="margin-top:6px"></div>
+
+        <h4 style="margin-top:18px">Medya Gönder</h4>
+        <label>Alıcı</label><input id="toMedia" placeholder="9053XXXXXXX" />
+        <label>Dosya</label><input id="fileInput" type="file" />
+        <label>Başlık (opsiyonel)</label><input id="caption" placeholder="Açıklama" />
+        <button id="sendMediaBtn">Gönder</button>
+        <div id="sendMediaResp" class="muted" style="margin-top:6px"></div>
+      </div>
+
+      <!-- Canlı Akış -->
+      <div class="card span-12">
+        <div class="row" style="justify-content:space-between; align-items:center">
+          <h3>Canlı Akış</h3>
+          <div class="row" style="gap:8px">
+            <span class="muted">SSE ile yayında</span>
+            <button class="ghost" id="clearLiveBtn">Temizle</button>
+          </div>
+        </div>
+        <div id="live" class="list" style="max-height:360px"></div>
+      </div>
+    </div>
   </div>
 
-  <div class="card">
-    <h3>Yeni Oturum (Session) Oluştur</h3>
-    <input id="sessionName" placeholder="İsim (opsiyonel)">
-    <button onclick="createSession()">Oluştur</button>
-    <div id="created"></div>
-    <div id="qrBox"></div>
-  </div>
+  <div id="toast" class="toast"></div>
 
-  <div class="card">
-    <h3>Webhook Ayarla</h3>
-    <input id="sid" placeholder="Session ID">
-    <input id="wurl" placeholder="Webhook URL">
-    <button onclick="setWebhook()">Kaydet</button>
-    <div id="wresp"></div>
-  </div>
+  <script>
+    // --- helpers ---
+    const $ = sel => document.querySelector(sel);
+    const el = id => document.getElementById(id);
+    const toast = (msg) => { const t=el('toast'); t.textContent=msg; t.classList.add('show'); setTimeout(()=>t.classList.remove('show'), 2000); };
+    const authToken = localStorage.getItem('adminAuth');
+    if(!authToken){ location.href = '/login.html'; }
 
-  <div class="card">
-    <h3>Test: Mesaj Gönder</h3>
-    <input id="sid2" placeholder="Session ID">
-    <input id="key2" placeholder="API Key">
-    <input id="to2" placeholder="905xxxxxxxxx">
-    <textarea id="text2">Selam 👋</textarea>
-    <button onclick="sendText()">Gönder</button>
-    <div id="tresp"></div>
-  </div>
+    const AH = () => ({ 'Content-Type':'application/json', 'X-Admin-Auth': authToken });
 
-<script>
-const ah = () => ({ 'X-Admin-Auth': localStorage.getItem('adminAuth') });
+    const state = {
+      sessions: [],
+      selected: null,
+      qrTimer: null,
+      sse: null,
+      liveMax: 200,
+    };
 
-async function loadSessions(){
-  const r = await fetch('/admin/sessions', { headers: ah() });
-  const j = await r.json();
-  const box = document.getElementById('sessionList'); box.innerHTML='';
-  if(!j.ok) return box.textContent = 'Hata: ' + (j.error||'');
-  j.sessions.forEach(s=>{
-    const d = document.createElement('div'); d.className='item';
-    d.textContent = `${s.id} | ${s.name} | ${s.status}`;
-    d.onclick = ()=>{ sid.value=s.id; sid2.value=s.id; key2.value=s.api_key||''; showQR(s.id); };
-    box.appendChild(d);
-  });
-}
+    function pill(status){
+      const s = (status||'').toLowerCase();
+      if(s==='ready') return '<span class="pill ok">ready</span>';
+      if(s==='pending') return '<span class="pill warn">pending</span>';
+      if(s==='disconnected') return '<span class="pill bad">disconnected</span>';
+      return `<span class="pill">${status||'-'}</span>`;
+    }
 
-async function createSession(){
-  const name = document.getElementById('sessionName').value;
-  const r = await fetch('/admin/sessions',{method:'POST',headers:{'Content-Type':'application/json',...ah()},
-    body: JSON.stringify({ name })});
-  const j = await r.json();
-  if(!j.ok) return created.textContent='Hata: '+(j.error||'');
-  created.innerHTML = `ID: <b>${j.id}</b><br>API_KEY: <span class="mono">${j.api_key}</span><br>WEBHOOK_SECRET: <span class="mono">${j.webhook_secret}</span>`;
-  sid.value=j.id; sid2.value=j.id; key2.value=j.api_key;
-  showQR(j.id);
-}
+    function setStatusPill(text, cls){
+      const p = el('statusPill');
+      p.className = 'pill ' + (cls||'');
+      p.textContent = text;
+    }
 
-async function showQR(id){
-  qrBox.innerHTML = 'QR bekleniyor…';
-  const r = await fetch(`/admin/sessions/${id}/qr`, { headers: ah() });
-  const j = await r.json();
-  if(!j.ok) return qrBox.textContent='Hata: '+(j.error||'');
-  if(j.ready) return qrBox.innerHTML='<b>Bağlı ✔</b>';
-  if(!j.qr) return qrBox.textContent='QR henüz hazır değil.';
-  const img = new Image(); img.src = j.qr; qrBox.innerHTML=''; qrBox.appendChild(img);
-}
+    // --- list sessions ---
+    async function loadSessions(){
+      setStatusPill('Yükleniyor…');
+      const r = await fetch('/admin/sessions', { headers: AH() });
+      const j = await r.json();
+      if(!j.ok){ setStatusPill('Hata', 'bad'); return; }
+      state.sessions = j.sessions || [];
+      setStatusPill(`Oturum: ${state.sessions.length}`, 'ok');
 
-async function setWebhook(){
-  const r = await fetch(`/admin/sessions/${sid.value}/webhook`, {
-    method:'POST',headers:{'Content-Type':'application/json',...ah()},
-    body: JSON.stringify({ url: wurl.value })
-  });
-  wresp.textContent = await r.text();
-}
+      const box = el('sessionList'); box.innerHTML = '';
+      state.sessions.forEach(s=>{
+        const div = document.createElement('div');
+        div.className = 'item';
+        div.innerHTML = `
+          <div class="row" style="justify-content:space-between;gap:12px">
+            <div class="nowrap"><b>${s.name||s.id}</b><div class="muted mono">${s.id}</div></div>
+            <div>${pill(s.status)}</div>
+          </div>
+          <div class="muted mono nowrap">api: ${s.api_key ? (s.api_key.slice(0,12)+'…') : '-'}</div>
+        `;
+        div.onclick = ()=> selectSession(s.id);
+        box.appendChild(div);
+      });
 
-async function sendText(){
-  const r = await fetch(`/api/${sid2.value}/send-text`, {method:'POST',
-    headers:{'Content-Type':'application/json','X-API-Key': key2.value},
-    body: JSON.stringify({ to: to2.value, text: text2.value })});
-  tresp.textContent = await r.text();
-}
-</script>
+      // seçili oturumu güncelle
+      if(state.selected){
+        const exists = state.sessions.find(x=>x.id===state.selected.id);
+        if(exists) selectSession(state.selected.id, true);
+      }
+    }
+
+    // --- select session ---
+    function selectSession(id, keepQR){
+      const s = state.sessions.find(x=>x.id===id);
+      if(!s){ toast('Oturum bulunamadı'); return; }
+      state.selected = s;
+      el('selectedNone').style.display='none';
+      el('selected').style.display='block';
+      el('s_id').textContent = s.id;
+      el('s_name').textContent = s.name || s.id;
+      el('s_status').innerHTML = pill(s.status);
+      el('s_api').textContent = s.api_key || '';
+      el('s_secret').textContent = s.webhook_secret || '';
+      el('w_url').value = s.webhook_url || '';
+      // form varsayılan alıcı kutularını doldurmak istersen:
+      // el('toText').value = ''; el('toMedia').value = '';
+
+      if(!keepQR) showQR();
+    }
+
+    // --- QR show/refresh ---
+    async function showQR(){
+      clearInterval(state.qrTimer);
+      el('qrBox').innerHTML = '<span class="muted">QR bekleniyor…</span>';
+      await fetchQROnce();
+      // periyodik yenile (ready olana kadar)
+      state.qrTimer = setInterval(fetchQROnce, 3000);
+    }
+    async function fetchQROnce(){
+      if(!state.selected) return;
+      const id = state.selected.id;
+      const r = await fetch(`/admin/sessions/${id}/qr`, { headers: AH() });
+      const j = await r.json();
+      const box = el('qrBox');
+      if(!j.ok){ box.textContent = 'QR alınamadı'; return; }
+      if(j.ready){
+        clearInterval(state.qrTimer);
+        box.innerHTML = '<span class="pill ok">Bağlı ✔</span>';
+      }else if(j.qr){
+        const img = new Image(); img.src = j.qr; img.className='qr';
+        box.innerHTML = ''; box.appendChild(img);
+      }else{
+        box.innerHTML = '<span class="muted">QR hazır değil, birazdan tekrar denenecek…</span>';
+      }
+    }
+
+    // --- create session ---
+    async function createSession(){
+      el('createBtn').disabled = true;
+      try{
+        const name = el('newName').value.trim();
+        const r = await fetch('/admin/sessions', { method:'POST', headers: AH(), body: JSON.stringify({ name }) });
+        const j = await r.json();
+        if(!j.ok) throw new Error(j.error||'create fail');
+        el('createResp').innerHTML =
+          `ID: <b>${j.id}</b><br/>API_KEY: <span class="mono">${j.api_key}</span><br/>WEBHOOK_SECRET: <span class="mono">${j.webhook_secret}</span>`;
+        await loadSessions();
+        selectSession(j.id);
+        toast('Oturum oluşturuldu');
+      }catch(e){ toast('Hata: '+e.message); }
+      el('createBtn').disabled = false;
+    }
+
+    // --- save webhook ---
+    async function saveWebhook(){
+      if(!state.selected) return;
+      const id = state.selected.id;
+      const url = el('w_url').value.trim();
+      if(!url) return toast('Webhook URL girin');
+      const r = await fetch(`/admin/sessions/${id}/webhook`, { method:'POST', headers: AH(), body: JSON.stringify({ url }) });
+      const t = await r.text();
+      el('webhookResp').textContent = t;
+      await loadSessions();
+      toast('Webhook kaydedildi');
+    }
+
+    // --- ping webhook (örnek) ---
+    async function pingWebhook(){
+      if(!state.selected) return;
+      const s = state.selected;
+      if(!s.webhook_url) return toast('Önce webhook URL kaydet');
+      // sadece test: doğrudan webhook’a minik bir payload POST eder
+      try{
+        const resp = await fetch(s.webhook_url, { method:'POST', headers:{'Content-Type':'application/json'},
+          body: JSON.stringify({ sessionId:s.id, event:'ping', data:{now:Date.now()}, ts:Date.now() }) });
+        toast('Webhook yanıtı: '+resp.status);
+      }catch(e){ toast('Webhook hata: '+e.message); }
+    }
+
+    // --- send text ---
+    async function sendText(){
+      if(!state.selected) return toast('Oturum seçin');
+      const s = state.selected;
+      const to = el('toText').value.trim();
+      const text = el('msgText').value;
+      if(!to || !text) return toast('Alıcı ve mesaj zorunlu');
+      const r = await fetch(`/api/${s.id}/send-text`, {
+        method:'POST', headers:{'Content-Type':'application/json','X-API-Key': s.api_key||''},
+        body: JSON.stringify({ to, text })
+      });
+      const t = await r.text();
+      el('sendTextResp').textContent = t;
+      if(r.ok) toast('Mesaj gönderildi');
+      else toast('Gönderim hatası');
+    }
+
+    // --- send media ---
+    async function sendMedia(){
+      if(!state.selected) return toast('Oturum seçin');
+      const s = state.selected;
+      const to = el('toMedia').value.trim();
+      const file = el('fileInput').files[0];
+      const caption = el('caption').value;
+      if(!to || !file) return toast('Alıcı ve dosya gerekli');
+
+      const b64 = await new Promise((res, rej)=>{
+        const reader = new FileReader();
+        reader.onload = () => res(reader.result); // data URI
+        reader.onerror = rej;
+        reader.readAsDataURL(file);
+      });
+
+      const r = await fetch(`/api/${s.id}/send-media`, {
+        method:'POST', headers:{'Content-Type':'application/json','X-API-Key': s.api_key||''},
+        body: JSON.stringify({ to, caption, media:{ base64:b64, filename:file.name } })
+      });
+      const t = await r.text();
+      el('sendMediaResp').textContent = t;
+      if(r.ok) toast('Medya gönderildi'); else toast('Medya gönderim hatası');
+    }
+
+    // --- SSE live feed ---
+    function startSSE(){
+      try{
+        if(state.sse) state.sse.close();
+      }catch{}
+      const es = new EventSource('/admin/events?token=' + encodeURIComponent(authToken));
+      state.sse = es;
+      es.addEventListener('message', ev => pushLive(JSON.parse(ev.data), 'msg'));
+      es.addEventListener('status', ev => pushLive(JSON.parse(ev.data), 'status'));
+      es.onerror = () => pushLive({ info:'SSE bağlantısı koptu' }, 'error');
+    }
+
+    function pushLive(data, kind){
+      const live = el('live');
+      const row = document.createElement('div');
+      row.className = 'item';
+      if(kind==='msg'){
+        row.innerHTML = `<span class="mono">[${data.sessionId}]</span> ${data.from} → ${data.to} : <b>${escapeHtml(data.body||'')}</b>`;
+      } else if(kind==='status'){
+        row.innerHTML = `<span class="mono">[${data.sessionId}]</span> durum: <b>${data.status}</b> ${data.reason?' ('+data.reason+')':''}`;
+      } else {
+        row.textContent = data.info || '—';
+      }
+      live.prepend(row);
+      while(live.children.length > state.liveMax){ live.removeChild(live.lastChild); }
+    }
+
+    function escapeHtml(s){ return (s||'').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+
+    // --- copy buttons ---
+    document.addEventListener('click', (e)=>{
+      const btn = e.target.closest('button[data-copy]');
+      if(!btn) return;
+      const sel = btn.getAttribute('data-copy');
+      const text = $(sel)?.textContent || '';
+      if(!text) return;
+      navigator.clipboard.writeText(text).then(()=>toast('Kopyalandı'));
+    });
+
+    // --- events ---
+    el('refreshBtn').onclick = loadSessions;
+    el('createBtn').onclick = createSession;
+    el('showQRBtn').onclick = showQR;
+    el('saveWebhookBtn').onclick = saveWebhook;
+    el('pingWebhookBtn').onclick = pingWebhook;
+    el('sendTextBtn').onclick = sendText;
+    el('sendMediaBtn').onclick = sendMedia;
+    el('clearLiveBtn').onclick = ()=>{ el('live').innerHTML=''; };
+    el('logoutBtn').onclick = ()=>{ localStorage.removeItem('adminAuth'); location.href='/login.html'; };
+
+    // init
+    startSSE();
+    loadSessions();
+  </script>
 </body>
 </html>
