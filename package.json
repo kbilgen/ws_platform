@@ -1,7 +1,7 @@
 {
   "name": "whatsapp-multi-bot",
   "version": "1.0.0",
-  "description": "Multi-session WhatsApp bot with API & Webhook support (Railway ready)",
+  "description": "Multi-session WhatsApp bot with API & Webhook support (Railway + Supabase)",
   "main": "index.js",
   "license": "Apache-2.0",
   "scripts": {
@@ -10,10 +10,10 @@
   },
   "dependencies": {
     "axios": "^1.7.2",
-    "better-sqlite3": "^9.5.0",
     "body-parser": "^1.20.2",
     "dotenv": "^16.4.5",
     "express": "^4.19.2",
+    "pg": "^8.12.0",
     "qrcode": "^1.5.3",
     "whatsapp-web.js": "^1.25.0"
   },
