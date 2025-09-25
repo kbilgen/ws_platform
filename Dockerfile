@@ -9,10 +9,8 @@ ENV NODE_ENV=production
 
 WORKDIR /app
 COPY package*.json ./
-RUN npm ci --only=production
+RUN npm install --omit=dev
 COPY . .
-
-# Bu satırı kaldır: VOLUME ["/data"]
 
 EXPOSE 3000
 CMD ["node","index.js"]

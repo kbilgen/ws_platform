@@ -2,5 +2,5 @@ node_modules
 .env
 /data
 .wwebjs_auth
-npm-debug.log*
 .DS_Store
+npm-debug.log*
