@@ -1,6 +1,6 @@
-// index.js — Multi-Account WhatsApp bot (admin login, QR, per-session API/Webhook, SSE)
+// index.js — Multi-Account WhatsApp bot (admin login, QR, per-session API/Webhook, SSE, rehydrate on boot)
 // Env: ADMIN_USER, ADMIN_PASS, DATA_DIR=/data, SESSION_DIR=/data/sessions, PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium
-// npm i express body-parser dotenv axios better-sqlite3 whatsapp-web.js qrcode
+// Deps: express body-parser dotenv axios better-sqlite3 whatsapp-web.js qrcode
 
 require('dotenv').config();
 
@@ -53,7 +53,7 @@ const DB = {
         status=excluded.status,
         api_key=COALESCE(excluded.api_key, sessions.api_key),
         webhook_url=COALESCE(excluded.webhook_url, sessions.webhook_url),
-        webhook_secret=COLESCE(excluded.webhook_secret, sessions.webhook_secret)
+        webhook_secret=COALESCE(excluded.webhook_secret, sessions.webhook_secret)
     `).run(s);
   },
   setStatus(id, status) {
@@ -186,7 +186,7 @@ const app = express();
 app.use(bodyParser.json({ limit: '20mb' }));
 app.use(express.static(path.join(__dirname, 'public')));
 
-// Admin auth — dinamik (env) kullanıcı/şifre, statik gömülü yok
+// Admin auth — header: X-Admin-Auth: base64("user:pass")
 function adminAuth(req, res, next) {
   const h = req.headers['x-admin-auth'];
   if (!h) return res.status(401).json({ ok: false, error: 'admin auth required' });
@@ -195,7 +195,7 @@ function adminAuth(req, res, next) {
   return res.status(401).json({ ok: false, error: 'invalid admin creds' });
 }
 
-// Tenant API key auth — header tabanlı
+// Tenant API key auth
 function keyAuth(req, res, next) {
   const key = req.headers['x-api-key'];
   const sid = req.params.sessionId || req.query.sessionId || req.body.sessionId;
@@ -227,12 +227,14 @@ app.post('/admin/sessions', adminAuth, async (req, res) => {
   res.json({ ok: true, id, api_key: api, webhook_secret: secret });
 });
 
+// QR görüntüleme
 app.get('/admin/sessions/:id/qr', adminAuth, (req, res) => {
   const e = clients.get(req.params.id);
-  if (!e) return res.status(404).json({ ok: false, error: 'session not found' });
-  return res.json({ ok: true, qr: e.qr, ready: e.ready });
+  if (!e) return res.status(404).json({ ok: false, error: 'session not running' });
+  return res.json({ ok: true, qr: e.qr, ready: !!e.ready });
 });
 
+// Webhook ayarla
 app.post('/admin/sessions/:id/webhook', adminAuth, (req, res) => {
   const { url } = req.body || {};
   if (!url) return res.status(400).json({ ok: false, error: 'url required' });
@@ -242,13 +244,38 @@ app.post('/admin/sessions/:id/webhook', adminAuth, (req, res) => {
   res.json({ ok: true });
 });
 
+// Session sil
 app.delete('/admin/sessions/:id', adminAuth, (req, res) => {
   destroySession(req.params.id);
   res.json({ ok: true });
 });
 
-// SSE — admin paneline canlı mesaj & durum
-// EventSource özel header gönderemediği için basit token query (base64 "user:pass") kullanıyoruz.
+// === Admin teşhis/aksiyon (status & restart) ===
+app.get('/admin/sessions/:id/status', adminAuth, (req, res) => {
+  const sid = req.params.id;
+  const s = DB.get(sid);          // DB kaydı
+  const e = clients.get(sid);     // RAM'deki client
+  return res.json({
+    ok: true,
+    inMemory: !!e,
+    ready: !!e?.ready,
+    db: s || null
+  });
+});
+
+app.post('/admin/sessions/:id/restart', adminAuth, async (req, res) => {
+  const sid = req.params.id;
+  const s = DB.get(sid);
+  if (!s) return res.status(404).json({ ok:false, error:'session not found in DB' });
+
+  const e = clients.get(sid);
+  if (e) { try { await e.client.destroy(); } catch {} clients.delete(sid); }
+  await createSession({ id: sid, name: s.name });
+  res.json({ ok:true });
+});
+
+// SSE — admin paneline canlı mesaj & durum yayını
+// EventSource özel header gönderemez; query param ile token (base64 "user:pass") kontrol ediyoruz.
 app.get('/admin/events', (req, res) => {
   const token = req.query.token || '';
   const [u, p] = Buffer.from(token || '', 'base64').toString('utf8').split(':');
@@ -308,4 +335,22 @@ app.get('/', (req, res) => {
   res.type('text').send('OK');
 });
 
+// === BOOT: tüm session'ları geri yükle (LocalAuth sayesinde QR istemeden bağlanır) ===
+async function bootRehydrateAllSessions() {
+  try {
+    const list = DB.list();
+    for (const s of list) {
+      if (!clients.has(s.id)) {
+        console.log('[BOOT] restoring session', s.id);
+        await createSession({ id: s.id, name: s.name });
+      }
+    }
+    console.log(`[BOOT] restored ${list.length} session(s).`);
+  } catch (e) {
+    console.error('[BOOT] rehydrate error:', e.message);
+  }
+}
+bootRehydrateAllSessions();
+
+// Start server
 app.listen(PORT, () => console.log('HTTP listening on :' + PORT));
