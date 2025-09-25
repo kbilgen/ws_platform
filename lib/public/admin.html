@@ -1,78 +1,78 @@
-<!doctype html><meta charset="utf-8">
-<title>Admin</title>
-<style>
-body{font-family:system-ui;margin:24px}
-.card{border:1px solid #eee;border-radius:12px;padding:16px;margin-bottom:16px}
-.row{display:flex;gap:12px;flex-wrap:wrap}
-.half{flex:1 1 360px}
-img{max-width:280px;border:1px solid #ddd;border-radius:8px}
-input,button,textarea{padding:10px;border:1px solid #ccc;border-radius:8px;width:100%}
-button{background:#111;color:#fff;cursor:pointer}
-.list{max-height:260px;overflow:auto;border:1px solid #eee;border-radius:8px;padding:8px}
-.item{padding:6px;border-bottom:1px solid #f2f2f2;cursor:pointer}
-.item:hover{background:#fafafa}
-.mono{font-family:ui-monospace,Menlo,monospace}
-</style>
+<!doctype html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8">
+  <title>Admin Panel</title>
+  <style>
+    body { font-family: system-ui, sans-serif; margin: 24px; }
+    .card { border: 1px solid #eee; border-radius: 12px; padding: 16px; margin-bottom: 16px; }
+    input, textarea, button { padding: 8px; border: 1px solid #ccc; border-radius: 8px; width: 100%; margin-bottom: 10px; }
+    button { background: #111; color: #fff; cursor: pointer; }
+    .list { max-height: 240px; overflow: auto; border: 1px solid #ddd; border-radius: 8px; padding: 8px; }
+    .item { padding: 6px; border-bottom: 1px solid #f2f2f2; cursor: pointer; }
+    .item:hover { background: #fafafa; }
+    img { max-width: 280px; margin-top: 12px; }
+    .mono { font-family: ui-monospace, monospace; }
+  </style>
+</head>
+<body>
+  <h2>Admin Panel</h2>
 
-<h2>Admin Panel</h2>
-<div class="card">
-  <button onclick="load()">Yenile</button>
-  <div id="list" class="list"></div>
-</div>
+  <div class="card">
+    <button onclick="loadSessions()">Oturumları Listele</button>
+    <div id="sessionList" class="list"></div>
+  </div>
 
-<div class="row">
-  <div class="card half">
-    <h3>Yeni Hat (Session) Oluştur & QR</h3>
-    <label>İsim</label>
-    <input id="name" placeholder="Örn: Klinik Hattı">
-    <button onclick="create()">Oluştur</button>
-    <div id="created" class="mono"></div>
+  <div class="card">
+    <h3>Yeni Oturum (Session) Oluştur</h3>
+    <input id="sessionName" placeholder="İsim (opsiyonel)">
+    <button onclick="createSession()">Oluştur</button>
+    <div id="created"></div>
     <div id="qrBox"></div>
   </div>
-  <div class="card half">
+
+  <div class="card">
     <h3>Webhook Ayarla</h3>
-    <label>Session ID</label><input id="sid">
-    <label>Webhook URL</label><input id="wurl" placeholder="https://...">
+    <input id="sid" placeholder="Session ID">
+    <input id="wurl" placeholder="Webhook URL">
     <button onclick="setWebhook()">Kaydet</button>
     <div id="wresp"></div>
   </div>
-</div>
 
-<div class="row">
-  <div class="card half">
-    <h3>Test: Metin Gönder</h3>
-    <label>Session ID</label><input id="sid2">
-    <label>API Key</label><input id="key2">
-    <label>Alıcı</label><input id="to2" placeholder="905xxxxxxxxx">
-    <label>Mesaj</label><textarea id="text2" rows="3">Selam 👋</textarea>
+  <div class="card">
+    <h3>Test: Mesaj Gönder</h3>
+    <input id="sid2" placeholder="Session ID">
+    <input id="key2" placeholder="API Key">
+    <input id="to2" placeholder="905xxxxxxxxx">
+    <textarea id="text2">Selam 👋</textarea>
     <button onclick="sendText()">Gönder</button>
     <div id="tresp"></div>
   </div>
-</div>
 
 <script>
 const ah = () => ({ 'X-Admin-Auth': localStorage.getItem('adminAuth') });
 
-async function load(){
+async function loadSessions(){
   const r = await fetch('/admin/sessions', { headers: ah() });
   const j = await r.json();
-  const box = document.getElementById('list'); box.innerHTML='';
+  const box = document.getElementById('sessionList'); box.innerHTML='';
   if(!j.ok) return box.textContent = 'Hata: ' + (j.error||'');
   j.sessions.forEach(s=>{
     const d = document.createElement('div'); d.className='item';
-    d.textContent = `${s.id} | ${s.name} | ${s.status} | apiKey: ${s.api_key ? s.api_key.slice(0,8)+'…' : '-'}`;
+    d.textContent = `${s.id} | ${s.name} | ${s.status}`;
     d.onclick = ()=>{ sid.value=s.id; sid2.value=s.id; key2.value=s.api_key||''; showQR(s.id); };
     box.appendChild(d);
   });
 }
 
-async function create(){
+async function createSession(){
+  const name = document.getElementById('sessionName').value;
   const r = await fetch('/admin/sessions',{method:'POST',headers:{'Content-Type':'application/json',...ah()},
-    body: JSON.stringify({ name: name.value })});
+    body: JSON.stringify({ name })});
   const j = await r.json();
   if(!j.ok) return created.textContent='Hata: '+(j.error||'');
-  created.innerHTML = `ID: <b>${j.id}</b><br>API_KEY: <b class="mono">${j.api_key}</b><br>WEBHOOK_SECRET: <b class="mono">${j.webhook_secret}</b>`;
-  sid.value = j.id; sid2.value=j.id; key2.value=j.api_key;
+  created.innerHTML = `ID: <b>${j.id}</b><br>API_KEY: <span class="mono">${j.api_key}</span><br>WEBHOOK_SECRET: <span class="mono">${j.webhook_secret}</span>`;
+  sid.value=j.id; sid2.value=j.id; key2.value=j.api_key;
   showQR(j.id);
 }
 
@@ -81,14 +81,16 @@ async function showQR(id){
   const r = await fetch(`/admin/sessions/${id}/qr`, { headers: ah() });
   const j = await r.json();
   if(!j.ok) return qrBox.textContent='Hata: '+(j.error||'');
-  if(j.ready) return qrBox.innerHTML = '<b>Bağlı ✔</b>';
-  if(!j.qr) { qrBox.textContent='QR hazır değil, 2-3 sn sonra tekrar yenileyin'; return; }
+  if(j.ready) return qrBox.innerHTML='<b>Bağlı ✔</b>';
+  if(!j.qr) return qrBox.textContent='QR henüz hazır değil.';
   const img = new Image(); img.src = j.qr; qrBox.innerHTML=''; qrBox.appendChild(img);
 }
 
 async function setWebhook(){
-  const r = await fetch(`/admin/sessions/${sid.value}/webhook`, {method:'POST',headers:{'Content-Type':'application/json',...ah()},
-    body: JSON.stringify({ url: wurl.value })});
+  const r = await fetch(`/admin/sessions/${sid.value}/webhook`, {
+    method:'POST',headers:{'Content-Type':'application/json',...ah()},
+    body: JSON.stringify({ url: wurl.value })
+  });
   wresp.textContent = await r.text();
 }
 
@@ -98,6 +100,6 @@ async function sendText(){
     body: JSON.stringify({ to: to2.value, text: text2.value })});
   tresp.textContent = await r.text();
 }
-
-load();
 </script>
+</body>
+</html>
