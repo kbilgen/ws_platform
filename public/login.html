@@ -62,7 +62,7 @@
     // OAuth dönüşünde erişim token'ını sakla ve yönlendir
     document.addEventListener('DOMContentLoaded', async () => {
       try {
-        const next = new URLSearchParams(location.search).get('next') || '/app.html';
+        const next = new URLSearchParams(location.search).get('next') || '/app';
         const { data: { session } } = await supabase.auth.getSession();
         const token = session?.access_token;
         if (token) {
@@ -118,7 +118,7 @@
       const token = data.session?.access_token;
       if(!token){ document.getElementById('msg').textContent = 'Auth başarısız'; return; }
       localStorage.setItem('sb_token', token);
-      location.href = '/app.html';
+      location.href = '/app';
     }
 
     async function signUp(){
@@ -144,7 +144,7 @@
     }
 
     async function oauth(provider){
-      const next = new URLSearchParams(location.search).get('next') || '/admin.html';
+      const next = new URLSearchParams(location.search).get('next') || '/app';
       try{
         await supabase.auth.signInWithOAuth({
           provider,

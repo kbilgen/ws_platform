@@ -191,7 +191,7 @@
 <script>
   const sb = window.supabase.createClient(window.ENV_SUPABASE_URL, window.ENV_SUPABASE_ANON_KEY);
   const token = localStorage.getItem('sb_token');
-  if(!token){ location.href = '/login.html?next=' + encodeURIComponent('/app.html'); }
+  if(!token){ location.href = '/login.html?next=' + encodeURIComponent('/app'); }
 
   const headers = { 'Authorization': 'Bearer ' + token, 'Content-Type':'application/json' };
 
@@ -199,7 +199,12 @@
 
   function setUserPill(email){ document.getElementById('userPill').textContent = email || 'Signed in'; }
   (async ()=>{
-    try{ const { data:{ user } } = await sb.auth.getUser(token); setUserPill(user?.email||user?.id); }catch{ setUserPill('User'); }
+    try{
+      const r = await fetch('/api/me', { headers });
+      const j = await r.json();
+      if(j?.ok){ setUserPill(j.user?.email || j.user?.id || 'User'); }
+      else { setUserPill('User'); }
+    }catch{ setUserPill('User'); }
   })();
 
   // Navigation

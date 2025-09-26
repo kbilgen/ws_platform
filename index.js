@@ -154,6 +154,22 @@ app.get('/config.js', (req, res) => {
   `);
 });
 
+// Clean URL for app shell
+app.get('/app', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'app.html'));
+});
+
+// Current user info (server-validated) for dynamic app page
+app.get('/api/me', supaAuth, async (req, res) => {
+  try {
+    const user = req.user; // from supaAuth
+    const sessions = await DB.listByUser(user.id);
+    res.json({ ok: true, user: { id: user.id, email: user.email || null }, counts: { sessions: sessions.length } });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: e?.message || 'failed to load profile' });
+  }
+});
+
 // Admin auth (legacy) — header: X-Admin-Auth: base64("user:pass")
 function adminAuth(req, res, next) {
   const h = req.headers['x-admin-auth'];
