@@ -40,6 +40,19 @@
       <button onclick="signIn()">Giriş</button>
       <button onclick="signUp()" style="background:#555">Kayıt Ol</button>
     </div>
+
+    <div style="display:flex; align-items:center; gap:8px; margin:12px 0">
+      <div style="height:1px; background:#eee; flex:1"></div>
+      <div class="muted">veya</div>
+      <div style="height:1px; background:#eee; flex:1"></div>
+    </div>
+    <div class="row">
+      <button style="background:#fff;color:#111;border:1px solid #ddd" onclick="oauth('google')">Google ile devam et</button>
+    </div>
+    <div class="row">
+      <button style="background:#000;color:#fff" onclick="oauth('apple')">Apple ile devam et</button>
+    </div>
+
     <div id="msg" class="muted"></div>
   </div>
   <script>
@@ -48,6 +61,19 @@
     const url = SUPABASE_URL || (window.SUPABASE_URL || '');
     const key = SUPABASE_ANON_KEY || (window.SUPABASE_ANON_KEY || '');
     const supabase = window.supabase.createClient(url, key);
+
+    // OAuth dönüşünde erişim token'ını sakla ve yönlendir
+    document.addEventListener('DOMContentLoaded', async () => {
+      try {
+        const next = new URLSearchParams(location.search).get('next') || '/admin.html';
+        const { data: { session } } = await supabase.auth.getSession();
+        const token = session?.access_token;
+        if (token) {
+          localStorage.setItem('sb_token', token);
+          location.replace(next);
+        }
+      } catch {}
+    });
 
     let captchaProvider = null;
     let captchaWidgetId = null;
@@ -118,6 +144,16 @@
       } finally {
         resetCaptcha();
       }
+    }
+
+    async function oauth(provider){
+      const next = new URLSearchParams(location.search).get('next') || '/admin.html';
+      try{
+        await supabase.auth.signInWithOAuth({
+          provider,
+          options: { redirectTo: location.origin + '/login.html?next=' + encodeURIComponent(next) }
+        });
+      }catch(e){ document.getElementById('msg').textContent = e.message || 'OAuth başlatılamadı'; }
     }
   </script>
 </body>
