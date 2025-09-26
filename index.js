@@ -25,7 +25,11 @@ const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY || '';
 const TURNSTILE_SECRET = process.env.TURNSTILE_SECRET || '';
 const HCAPTCHA_SECRET = process.env.HCAPTCHA_SECRET || '';
 const SIGNUP_DAILY_LIMIT = parseInt(process.env.SIGNUP_DAILY_LIMIT || '5', 10);
+const SESSION_BASE = process.env.SESSION_DIR || path.join(process.cwd(), 'sessions');
 const supabase = SUPABASE_URL && SUPABASE_ANON_KEY ? createClient(SUPABASE_URL, SUPABASE_ANON_KEY) : null;
+
+// Ensure LocalAuth base directory exists (for persistence across deployments)
+try { fs.mkdirSync(SESSION_BASE, { recursive: true }); console.log('[BOOT] LocalAuth base directory:', SESSION_BASE); } catch (e) { console.error('Failed to ensure SESSION_BASE dir:', e?.message || e); }
 
 // ====== Çoklu Client + SSE ======
 const clients = new Map(); // sessionId -> { client, qr, ready }
@@ -53,7 +57,7 @@ async function postWebhook(sessionId, event, data) {
 
 async function createSession({ id, name, userId }) {
   const client = new Client({
-    authStrategy: new LocalAuth({ dataPath: path.join(process.cwd(), 'sessions'), clientId: id }),
+    authStrategy: new LocalAuth({ dataPath: SESSION_BASE, clientId: id }),
     puppeteer: { headless: true, args: ['--no-sandbox', '--disable-setuid-sandbox'], executablePath: EXEC_PATH }
   });
 
