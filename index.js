@@ -134,6 +134,14 @@ const app = express();
 app.use(bodyParser.json({ limit: '20mb' }));
 app.use(express.static(path.join(__dirname, 'public')));
 
+// Frontend config for Supabase (expose URL and ANON key)
+app.get('/config.js', (req, res) => {
+  res.type('application/javascript').send(`
+    window.ENV_SUPABASE_URL = ${JSON.stringify(process.env.SUPABASE_URL || '')};
+    window.ENV_SUPABASE_ANON_KEY = ${JSON.stringify(process.env.SUPABASE_ANON_KEY || '')};
+  `);
+});
+
 // Admin auth (legacy) — header: X-Admin-Auth: base64("user:pass")
 function adminAuth(req, res, next) {
   const h = req.headers['x-admin-auth'];
