@@ -242,7 +242,7 @@
       const s = state.selected; if(!s){ el('s_curl').textContent = ''; return; }
       const base = (window.ENV_PUBLIC_BASE_URL && window.ENV_PUBLIC_BASE_URL.trim()) ? window.ENV_PUBLIC_BASE_URL.trim() : location.origin;
       const apiKey = s.api_key || '<api_key>';
-      const exampleTo = '+905372559771';
+      const exampleTo = '+90xxxxxxxxxx';
       const exampleText = 'Hello from API!';
       const curl = [
         `curl -X POST "${base}/api/send-message" \\\n -H "Authorization: Bearer ${apiKey}" \\\n -H "Content-Type: application/json" \\\n -d '{"to": "${exampleTo}", "text": "${exampleText}"}'`
