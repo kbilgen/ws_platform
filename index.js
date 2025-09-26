@@ -221,7 +221,9 @@ async function keyAuth(req, res, next) {
         howTo: {
           header: 'X-API-Key: <api_key>',
           bearer: 'Authorization: Bearer <api_key>',
-          example: `curl -X POST "${req.protocol}://${req.get('host')}/api/<sessionId>/send-text" -H "Content-Type: application/json" -H "X-API-Key: <api_key>" -d '{"to":"+9053...","text":"Hello"}'`
+          example_header: `curl -X POST ${req.protocol}://${req.get('host')}/api/<sessionId>/send-text -H 'Content-Type: application/json' -H 'X-API-Key: <api_key>' -d '{"to":"+9053...","text":"Hello"}'`,
+          example_bearer: `curl -X POST ${req.protocol}://${req.get('host')}/api/<sessionId>/send-text -H 'Authorization: Bearer <api_key>' -H 'Content-Type: application/json' -d '{"to":"+9053...","text":"Hello"}'`,
+          example_query: `curl -X POST '${req.protocol}://${req.get('host')}/api/<sessionId>/send-text?api_key=<api_key>' -H 'Content-Type: application/json' -d '{"to":"+9053...","text":"Hello"}'`
         }
       });
     }
