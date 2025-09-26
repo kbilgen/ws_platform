@@ -684,6 +684,8 @@
   // init
   loadSessions();
   startSSE();
+  // wire API Playground buttons (Send / Copy cURL)
+  try { wireApiPlayground(); } catch (e) { /* ignore */ }
 </script>
 </body>
 </html>
