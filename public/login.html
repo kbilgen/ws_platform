@@ -13,12 +13,29 @@
   </style>
   <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
   <script src="/config.js"></script>
+  <script>
+    // Dinamik olarak uygun CAPTCHA scriptini yükle
+    (function(){
+      const tKey = window.ENV_TURNSTILE_SITE_KEY;
+      const hKey = window.ENV_HCAPTCHA_SITE_KEY;
+      if (tKey) {
+        const s = document.createElement('script');
+        s.src = 'https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit';
+        s.defer = true; document.head.appendChild(s);
+      } else if (hKey) {
+        const s = document.createElement('script');
+        s.src = 'https://js.hcaptcha.com/1/api.js?render=explicit';
+        s.defer = true; document.head.appendChild(s);
+      }
+    })();
+  </script>
 </head>
 <body>
   <div class="card">
     <h2>Giriş</h2>
     <input id="email" type="email" placeholder="E-posta" />
     <input id="password" type="password" placeholder="Şifre" />
+    <div id="captchaBox" style="margin:10px 0"></div>
     <div class="row">
       <button onclick="signIn()">Giriş</button>
       <button onclick="signUp()" style="background:#555">Kayıt Ol</button>
@@ -28,11 +45,46 @@
   <script>
     const SUPABASE_URL = window.ENV_SUPABASE_URL || null;
     const SUPABASE_ANON_KEY = window.ENV_SUPABASE_ANON_KEY || null;
-    // Not: Bu değerleri dağıtım ortamında public olarak sağlayın (örn. meta tag veya inline script)
-    // Alternatif olarak .html dosyasını build sırasında doldurabilirsiniz.
     const url = SUPABASE_URL || (window.SUPABASE_URL || '');
     const key = SUPABASE_ANON_KEY || (window.SUPABASE_ANON_KEY || '');
     const supabase = window.supabase.createClient(url, key);
+
+    let captchaProvider = null;
+    let captchaWidgetId = null;
+
+    function renderCaptcha(){
+      const box = document.getElementById('captchaBox');
+      const tKey = window.ENV_TURNSTILE_SITE_KEY;
+      const hKey = window.ENV_HCAPTCHA_SITE_KEY;
+      if (tKey && window.turnstile) {
+        captchaProvider = 'turnstile';
+        captchaWidgetId = window.turnstile.render('#captchaBox', { sitekey: tKey });
+      } else if (hKey && window.hcaptcha) {
+        captchaProvider = 'hcaptcha';
+        captchaWidgetId = window.hcaptcha.render('captchaBox', { sitekey: hKey });
+      } else {
+        // Script henüz yüklenmemiş olabilir; biraz bekle ve tekrar dene
+        setTimeout(renderCaptcha, 300);
+      }
+    }
+    renderCaptcha();
+
+    function getCaptchaToken(){
+      if (captchaProvider === 'turnstile') {
+        try { return window.turnstile.getResponse(captchaWidgetId) || ''; } catch { return ''; }
+      }
+      if (captchaProvider === 'hcaptcha') {
+        try { return window.hcaptcha.getResponse(captchaWidgetId) || ''; } catch { return ''; }
+      }
+      return '';
+    }
+
+    function resetCaptcha(){
+      try{
+        if (captchaProvider === 'turnstile' && window.turnstile) window.turnstile.reset(captchaWidgetId);
+        if (captchaProvider === 'hcaptcha' && window.hcaptcha) window.hcaptcha.reset(captchaWidgetId);
+      }catch{}
+    }
 
     async function signIn(){
       const email = document.getElementById('email').value.trim();
@@ -50,9 +102,22 @@
       const email = document.getElementById('email').value.trim();
       const password = document.getElementById('password').value;
       document.getElementById('msg').textContent = '';
-      const { data, error } = await supabase.auth.signUp({ email, password });
-      if(error){ document.getElementById('msg').textContent = error.message; return; }
-      document.getElementById('msg').textContent = 'Kayıt başarılı. Lütfen gelen doğrulama e-postasını onaylayın, sonra giriş yapın.';
+      if(!email || !password){ document.getElementById('msg').textContent = 'E-posta ve şifre gerekli'; return; }
+      const captchaToken = getCaptchaToken();
+      if(!captchaToken){ document.getElementById('msg').textContent = 'Lütfen güvenlik doğrulamasını tamamlayın'; return; }
+      try{
+        const r = await fetch('/auth/signup', {
+          method:'POST', headers:{ 'Content-Type':'application/json' },
+          body: JSON.stringify({ email, password, captchaToken, provider: captchaProvider })
+        });
+        const j = await r.json();
+        if(!j.ok){ throw new Error(j.error||'Kayıt başarısız'); }
+        document.getElementById('msg').textContent = 'Kayıt başarılı. Lütfen gelen doğrulama e-postasını onaylayın, sonra giriş yapın.';
+      }catch(e){
+        document.getElementById('msg').textContent = e.message;
+      } finally {
+        resetCaptcha();
+      }
     }
   </script>
 </body>

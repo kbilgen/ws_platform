@@ -22,6 +22,9 @@ const ADMIN_PASS = process.env.ADMIN_PASS || 'admin'; // legacy
 const EXEC_PATH = process.env.PUPPETEER_EXECUTABLE_PATH || '/usr/bin/chromium';
 const SUPABASE_URL = process.env.SUPABASE_URL || '';
 const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY || '';
+const TURNSTILE_SECRET = process.env.TURNSTILE_SECRET || '';
+const HCAPTCHA_SECRET = process.env.HCAPTCHA_SECRET || '';
+const SIGNUP_DAILY_LIMIT = parseInt(process.env.SIGNUP_DAILY_LIMIT || '5', 10);
 const supabase = SUPABASE_URL && SUPABASE_ANON_KEY ? createClient(SUPABASE_URL, SUPABASE_ANON_KEY) : null;
 
 // ====== Çoklu Client + SSE ======
@@ -132,6 +135,8 @@ async function sendMedia(sessionId, { to, caption, base64, filename, mime }) {
 // ====== Express App ======
 const app = express();
 app.use(bodyParser.json({ limit: '20mb' }));
+// arka proxy'lerde gerçek IP'yi almak için
+app.set('trust proxy', 1);
 app.use(express.static(path.join(__dirname, 'public')));
 
 // Frontend config for Supabase (expose URL and ANON key)
@@ -139,6 +144,8 @@ app.get('/config.js', (req, res) => {
   res.type('application/javascript').send(`
     window.ENV_SUPABASE_URL = ${JSON.stringify(process.env.SUPABASE_URL || '')};
     window.ENV_SUPABASE_ANON_KEY = ${JSON.stringify(process.env.SUPABASE_ANON_KEY || '')};
+    window.ENV_TURNSTILE_SITE_KEY = ${JSON.stringify(process.env.TURNSTILE_SITE_KEY || '')};
+    window.ENV_HCAPTCHA_SITE_KEY = ${JSON.stringify(process.env.HCAPTCHA_SITE_KEY || '')};
   `);
 });
 
@@ -301,6 +308,75 @@ app.get('/', (req, res) => {
   const file = path.join(__dirname, 'public', 'login.html');
   if (fs.existsSync(file)) return res.sendFile(file);
   res.type('text').send('OK');
+});
+
+// === Signup proxy with CAPTCHA + per-IP daily limit ===
+const signupCounters = new Map(); // ip -> { day: 'YYYY-MM-DD', count: number }
+function isOverLimit(ip) {
+  const day = new Date().toISOString().slice(0,10);
+  const rec = signupCounters.get(ip);
+  if (!rec || rec.day !== day) { signupCounters.set(ip, { day, count: 0 }); return false; }
+  return rec.count >= SIGNUP_DAILY_LIMIT;
+}
+function incrCounter(ip) {
+  const day = new Date().toISOString().slice(0,10);
+  const rec = signupCounters.get(ip);
+  if (!rec || rec.day !== day) {
+    signupCounters.set(ip, { day, count: 1 });
+  } else {
+    rec.count += 1;
+  }
+}
+
+async function verifyCaptcha({ provider, token, ip }) {
+  try {
+    if (provider === 'turnstile') {
+      if (!TURNSTILE_SECRET) return { ok:false, error:'turnstile not configured' };
+      const r = await axios.post('https://challenges.cloudflare.com/turnstile/v0/siteverify', new URLSearchParams({
+        secret: TURNSTILE_SECRET,
+        response: token,
+        remoteip: ip || ''
+      }).toString(), { headers: { 'Content-Type':'application/x-www-form-urlencoded' } });
+      if (r.data && r.data.success) return { ok:true };
+      return { ok:false, error: 'captcha failed', details: r.data };
+    }
+    if (provider === 'hcaptcha') {
+      if (!HCAPTCHA_SECRET) return { ok:false, error:'hcaptcha not configured' };
+      const r = await axios.post('https://hcaptcha.com/siteverify', new URLSearchParams({
+        secret: HCAPTCHA_SECRET,
+        response: token,
+        remoteip: ip || ''
+      }).toString(), { headers: { 'Content-Type':'application/x-www-form-urlencoded' } });
+      if (r.data && r.data.success) return { ok:true };
+      return { ok:false, error: 'captcha failed', details: r.data };
+    }
+    return { ok:false, error:'unknown provider' };
+  } catch (e) {
+    return { ok:false, error: e?.message || 'captcha verify error' };
+  }
+}
+
+app.post('/auth/signup', async (req, res) => {
+  try {
+    const ip = (req.headers['cf-connecting-ip'] || req.ip || '').toString();
+    const { email, password, captchaToken, provider } = req.body || {};
+    if (!email || !password) return res.status(400).json({ ok:false, error:'email & password required' });
+
+    if (isOverLimit(ip)) return res.status(429).json({ ok:false, error:`daily signup limit exceeded (${SIGNUP_DAILY_LIMIT}/day)` });
+
+    const vc = await verifyCaptcha({ provider, token: captchaToken, ip });
+    if (!vc.ok) return res.status(400).json({ ok:false, error: vc.error || 'captcha failed' });
+
+    if (!supabase) return res.status(500).json({ ok:false, error:'supabase not configured' });
+
+    const { data, error } = await supabase.auth.signUp({ email, password });
+    incrCounter(ip);
+    if (error) return res.status(400).json({ ok:false, error: error.message });
+    const needsConfirm = !data.session; // email confirm çoğunlukla session döndürmez
+    return res.json({ ok:true, needsConfirm, user: data.user || null });
+  } catch (e) {
+    return res.status(500).json({ ok:false, error: e?.message || 'signup error' });
+  }
 });
 
 // === BOOT: tüm session'ları geri yükle (LocalAuth sayesinde QR istemeden bağlanır) ===
