@@ -1,0 +1,319 @@
+<!doctype html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8" />
+  <title>WasenderApi — Panel</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+  <script src="/config.js"></script>
+  <style>
+    :root{
+      --bg:#0f1115; --card:#12151b; --line:#20242d; --fg:#e7e9ee; --muted:#9aa3af;
+      --accent:#16a34a; --accent-2:#22c55e; --pill:#1b1f29; --warn:#f59e0b; --bad:#ef4444;
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{margin:0; background:var(--bg); color:var(--fg); font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif}
+    .layout{display:grid; grid-template-columns: 260px 1fr; height:100%}
+    aside{border-right:1px solid var(--line); padding:14px; display:flex; flex-direction:column; gap:12px; background:var(--card)}
+    .brand{font-weight:700; letter-spacing:.2px; display:flex; gap:8px; align-items:center}
+    .menu{display:flex; flex-direction:column; gap:6px; margin-top:8px}
+    .menu button{background:transparent; border:1px solid transparent; text-align:left; padding:10px 10px; border-radius:10px; color:var(--fg); cursor:pointer}
+    .menu button.active{background:#151924; border-color:var(--line)}
+    .menu .muted{color:var(--muted); font-size:12px; padding:4px 10px}
+    .footer{margin-top:auto; color:var(--muted); font-size:12px}
+
+    header{display:flex; align-items:center; justify-content:space-between; gap:12px; padding:14px 18px; border-bottom:1px solid var(--line); position:sticky; top:0; background:rgba(15,17,21,.65); backdrop-filter: blur(8px); z-index:5}
+    header .row{display:flex; align-items:center; gap:10px}
+    header .pill{background:var(--pill); border:1px solid var(--line); padding:6px 10px; border-radius:999px; font-size:12px}
+    header .btn{background:#1c2030; color:#fff; border:1px solid var(--line); border-radius:10px; padding:8px 10px; cursor:pointer}
+
+    main{height:100%; overflow:auto}
+    .container{max-width:1180px; margin:16px auto; padding:0 16px}
+
+    .grid{display:grid; grid-template-columns: repeat(12, 1fr); gap:16px}
+    .span-12{grid-column:span 12}
+    .span-8{grid-column:span 8}
+    .span-6{grid-column:span 6}
+    .span-4{grid-column:span 4}
+    .card{background:var(--card); border:1px solid var(--line); border-radius:12px; padding:16px}
+    .card h3{margin:0 0 10px 0; font-size:16px}
+    .muted{color:var(--muted)}
+    .progress{height:8px; background:#0b0f16; border:1px solid var(--line); border-radius:999px; overflow:hidden}
+    .progress > i{display:block; height:100%; background:linear-gradient(90deg,var(--accent),var(--accent-2)); width:0%}
+    .center{display:flex; align-items:center; justify-content:center; min-height:120px; color:#94a3b8}
+    .btn{background:#1c2030; color:#fff; border:1px solid var(--line); border-radius:10px; padding:10px 12px; cursor:pointer}
+    .btn.primary{background:var(--accent)}
+    .row{display:flex; align-items:center; gap:10px}
+    .right{margin-left:auto}
+    .pill.ok{background:rgba(34,197,94,.1); border:1px solid rgba(34,197,94,.2); color:#34d399; padding:4px 8px; border-radius:999px; font-size:12px}
+    .pill.bad{background:rgba(239,68,68,.12); border:1px solid rgba(239,68,68,.2); color:#f87171; padding:4px 8px; border-radius:999px; font-size:12px}
+    .pill.warn{background:rgba(245,158,11,.12); border:1px solid rgba(245,158,11,.2); color:#fbbf24; padding:4px 8px; border-radius:999px; font-size:12px}
+
+    .toolbar{display:flex; align-items:center; gap:8px}
+    input, select{background:#0f131c; color:var(--fg); border:1px solid var(--line); border-radius:10px; padding:10px 12px}
+
+    .list{border:1px solid var(--line); border-radius:12px; overflow:hidden}
+    .item{padding:12px 14px; border-bottom:1px solid var(--line);}
+    .item:last-child{border-bottom:0}
+
+    .empty{display:flex; align-items:center; justify-content:center; flex-direction:column; gap:10px; min-height:260px; color:#9aa3af}
+
+    @media (max-width: 1024px){
+      .layout{grid-template-columns: 1fr}
+      aside{position:sticky; top:0; z-index:10}
+    }
+  </style>
+</head>
+<body>
+<div class="layout">
+  <aside>
+    <div class="brand">WasenderApi API</div>
+    <div class="menu">
+      <div class="muted">Platform</div>
+      <button id="m_dashboard" class="active">Dashboard</button>
+      <button id="m_sessions">Sessions</button>
+      <button id="m_subscription">Subscription</button>
+    </div>
+    <div class="footer">
+      <div>Documentation</div>
+      <div>Need Help?</div>
+      <div>Contact Us</div>
+    </div>
+  </aside>
+  <main>
+    <header>
+      <div class="row">
+        <div id="crumb">Dashboard</div>
+      </div>
+      <div class="row">
+        <div id="userPill" class="pill">Loading…</div>
+        <button id="logout" class="btn">Logout</button>
+      </div>
+    </header>
+
+    <div id="view_dashboard" class="container">
+      <div class="grid">
+        <div class="card span-4">
+          <h3>Subscription</h3>
+          <div class="row" style="justify-content:space-between; margin-bottom:8px">
+            <div class="muted">WhatsApp Sessions</div>
+            <div id="planBadge" class="pill ok">Basic</div>
+          </div>
+          <div class="progress"><i id="planProgress" style="width:0%"></i></div>
+          <div class="row" style="margin-top:8px; justify-content:space-between">
+            <div id="planUsage" class="muted">0 / 1</div>
+            <div class="muted" id="planPct">0% used</div>
+          </div>
+          <div class="row" style="margin-top:14px">
+            <button class="btn">Manage Subscription</button>
+          </div>
+        </div>
+        <div class="card span-4">
+          <h3>WhatsApp Sessions</h3>
+          <div id="dashSessionsEmpty" class="center">No active whatsapp session</div>
+          <div class="row" style="justify-content:center">
+            <button id="dashCreate" class="btn">Create WhatsApp Session</button>
+          </div>
+        </div>
+        <div class="card span-4">
+          <h3>Recent Activity</h3>
+          <div id="recent" class="center">No recent activity</div>
+        </div>
+
+        <div class="card span-8">
+          <h3>Message Activity</h3>
+          <div id="msgActivity" class="empty">
+            <div>No message data available</div>
+            <div class="muted"><span id="msgCount">0</span> messages</div>
+          </div>
+        </div>
+        <div class="card span-4">
+          <div class="row" style="align-items:center; gap:8px">
+            <h3 style="margin:0">Last 5 Failed Messages</h3>
+            <span class="pill warn">beta</span>
+          </div>
+          <div class="empty">No failed messages recently.</div>
+        </div>
+      </div>
+    </div>
+
+    <div id="view_sessions" class="container" style="display:none">
+      <div class="card span-12" style="margin-bottom:16px">
+        <div class="row" style="justify-content:space-between">
+          <div>
+            <div class="muted">Current Plan: <b>Basic</b></div>
+            <div class="progress" style="margin-top:8px; width:420px; max-width:100%"><i id="planProgress2" style="width:0%"></i></div>
+            <div class="muted" id="planUsage2" style="margin-top:4px">0 of 1 WhatsApp sessions used</div>
+          </div>
+          <div class="toolbar">
+            <button id="helpCenter" class="btn">Help Center</button>
+            <button id="refreshSessions" class="btn">Refresh</button>
+            <button id="newSession" class="btn primary">New Session</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="card span-12">
+        <div class="row" style="gap:8px; margin-bottom:10px">
+          <input id="search" placeholder="Search sessions..." style="flex:1" />
+          <select id="statusFilter">
+            <option value="">All Statuses</option>
+            <option value="ready">ready</option>
+            <option value="pending">pending</option>
+            <option value="disconnected">disconnected</option>
+          </select>
+        </div>
+        <div id="sessionList" class="list"></div>
+        <div id="emptySessions" class="empty" style="display:none">
+          <div>No WhatsApp Sessions</div>
+          <div class="muted">You haven't created any WhatsApp sessions yet. Create your first session to get started.</div>
+          <button id="createSessionEmpty" class="btn" style="margin-top:10px">Create Session</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="view_subscription" class="container" style="display:none">
+      <div class="grid">
+        <div class="card span-8">
+          <h3>Plans</h3>
+          <p class="muted">Membership plans will be managed here. Coming soon.</p>
+        </div>
+        <div class="card span-4">
+          <h3>Actions</h3>
+          <button class="btn">View Plans</button>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<script>
+  const sb = window.supabase.createClient(window.ENV_SUPABASE_URL, window.ENV_SUPABASE_ANON_KEY);
+  const token = localStorage.getItem('sb_token');
+  if(!token){ location.href = '/login.html?next=' + encodeURIComponent('/app.html'); }
+
+  const headers = { 'Authorization': 'Bearer ' + token, 'Content-Type':'application/json' };
+
+  const state = { sessions: [], sse:null, recent:[], msgCount:0 };
+
+  function setUserPill(email){ document.getElementById('userPill').textContent = email || 'Signed in'; }
+  (async ()=>{
+    try{ const { data:{ user } } = await sb.auth.getUser(token); setUserPill(user?.email||user?.id); }catch{ setUserPill('User'); }
+  })();
+
+  // Navigation
+  const views = {
+    dashboard: document.getElementById('view_dashboard'),
+    sessions: document.getElementById('view_sessions'),
+    subscription: document.getElementById('view_subscription'),
+  };
+  function show(view){
+    document.querySelectorAll('.menu button').forEach(b=>b.classList.remove('active'));
+    document.getElementById('m_'+view).classList.add('active');
+    Object.entries(views).forEach(([k,v])=> v.style.display = (k===view? 'block':'none'));
+    document.getElementById('crumb').textContent = view.charAt(0).toUpperCase()+view.slice(1);
+    if(view==='sessions') loadSessions();
+  }
+  document.getElementById('m_dashboard').onclick = ()=>show('dashboard');
+  document.getElementById('m_sessions').onclick = ()=>show('sessions');
+  document.getElementById('m_subscription').onclick = ()=>show('subscription');
+
+  // Logout
+  document.getElementById('logout').onclick = async ()=>{ try{ await sb.auth.signOut(); }catch{} localStorage.removeItem('sb_token'); location.href='/login.html'; };
+
+  // Data loaders
+  async function loadSessions(){
+    const r = await fetch('/admin/sessions', { headers });
+    const j = await r.json();
+    if(!j.ok){ return; }
+    state.sessions = j.sessions || [];
+    renderSessions();
+    renderPlan();
+  }
+
+  function renderPlan(){
+    const limit = 1; // placeholder plan limit
+    const used = state.sessions.length;
+    const pct = Math.min(100, Math.round((used/limit)*100));
+    document.getElementById('planUsage').textContent = `${used} / ${limit}`;
+    document.getElementById('planUsage2').textContent = `${used} of ${limit} WhatsApp sessions used`;
+    document.getElementById('planPct').textContent = `${pct}% used`;
+    document.getElementById('planProgress').style.width = pct+'%';
+    document.getElementById('planProgress2').style.width = pct+'%';
+    document.getElementById('dashSessionsEmpty').style.display = used>0 ? 'none':'flex';
+  }
+
+  function pill(status){
+    const s = (status||'').toLowerCase();
+    if(s==='ready') return '<span class="pill ok">ready</span>';
+    if(s==='pending') return '<span class="pill warn">pending</span>';
+    if(s==='disconnected') return '<span class="pill bad">disconnected</span>';
+    return `<span class="pill">${status||'-'}</span>`;
+  }
+
+  function renderSessions(){
+    const list = document.getElementById('sessionList');
+    list.innerHTML='';
+    const term = (document.getElementById('search').value||'').toLowerCase();
+    const filt = (document.getElementById('statusFilter').value||'');
+    const rows = state.sessions.filter(s=>
+      (!term || s.id.toLowerCase().includes(term) || (s.name||'').toLowerCase().includes(term)) &&
+      (!filt || (s.status||'')===filt)
+    );
+    if(rows.length===0){ list.style.display='none'; document.getElementById('emptySessions').style.display='flex'; }
+    else { list.style.display='block'; document.getElementById('emptySessions').style.display='none'; }
+    rows.forEach(s=>{
+      const div = document.createElement('div');
+      div.className = 'item';
+      div.innerHTML = `<div class="row" style="justify-content:space-between; gap:12px">
+        <div>
+          <div style="font-weight:600">${s.name||s.id}</div>
+          <div class="muted" style="font-family:ui-monospace,Menlo,monospace">${s.id}</div>
+        </div>
+        <div>${pill(s.status)}</div>
+      </div>`;
+      list.appendChild(div);
+    });
+  }
+
+  document.getElementById('refreshSessions').onclick = loadSessions;
+  document.getElementById('newSession').onclick = createSession;
+  document.getElementById('createSessionEmpty').onclick = createSession;
+  document.getElementById('dashCreate').onclick = ()=>{ show('sessions'); createSession(); };
+  document.getElementById('search').oninput = renderSessions;
+  document.getElementById('statusFilter').onchange = renderSessions;
+
+  async function createSession(){
+    try{
+      const name = prompt('Session name?', 'My WhatsApp Session') || '';
+      const r = await fetch('/admin/sessions', { method:'POST', headers, body: JSON.stringify({ name }) });
+      const j = await r.json();
+      if(!j.ok) throw new Error(j.error||'create failed');
+      await loadSessions();
+    }catch(e){ alert(e.message); }
+  }
+
+  // Recent Activity + Message Activity via SSE
+  function startSSE(){
+    try{ if(state.sse) state.sse.close(); }catch{}
+    const es = new EventSource('/admin/events?token=' + encodeURIComponent(token));
+    state.sse = es;
+    es.addEventListener('message', ev => {
+      state.msgCount++; document.getElementById('msgCount').textContent = state.msgCount;
+      addRecent('message');
+    });
+    es.addEventListener('status', ev => addRecent('status'));
+    es.onerror = () => {/* noop */};
+  }
+  function addRecent(kind){
+    const el = document.getElementById('recent');
+    el.textContent = kind==='message' ? 'New message arrived' : 'Session status changed';
+  }
+
+  // init
+  loadSessions();
+  startSSE();
+</script>
+</body>
+</html>
