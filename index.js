@@ -299,6 +299,36 @@ app.post('/api/:sessionId/send-media', keyAuth, async (req, res) => {
   }
 });
 
+// ---- Unified Bearer token API (no sessionId in path) ----
+async function bearerKeyAuth(req, res, next) {
+  try {
+    const h = req.headers['authorization'] || '';
+    if (!h.startsWith('Bearer ')) return res.status(401).json({ ok:false, error:'Authorization: Bearer <token> required' });
+    const token = h.slice(7).trim();
+    if (!token) return res.status(401).json({ ok:false, error:'bearer token missing' });
+    const s = await DB.getByApiKey(token);
+    if (!s) return res.status(403).json({ ok:false, error:'invalid bearer token' });
+    req.session = s; // attach full session
+    next();
+  } catch (e) {
+    return res.status(500).json({ ok:false, error: e?.message || 'auth error' });
+  }
+}
+
+app.post('/api/send-message', bearerKeyAuth, async (req, res) => {
+  try {
+    let { to, text } = req.body || {};
+    if (!to || !text) return res.status(400).json({ ok:false, error:'to & text required' });
+    // normalize phone: remove leading '+' and spaces
+    if (typeof to === 'string') to = to.replace(/\s+/g,'');
+    if (typeof to === 'string' && to.startsWith('+')) to = to.slice(1);
+    const m = await sendText(req.session.id, to, text);
+    return res.json({ ok:true, id: m.id.id, sessionId: req.session.id });
+  } catch (e) {
+    return res.status(500).json({ ok:false, error: e?.message || 'send-message fail' });
+  }
+});
+
 // Health & root
 app.get('/health', async (req, res) => {
   const rows = await DB.list();

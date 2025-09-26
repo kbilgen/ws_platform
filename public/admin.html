@@ -91,6 +91,13 @@
             <div class="muted">API Key</div><div class="row"><span id="s_api" class="mono nowrap"></span><button class="ghost right" data-copy="#s_api">Kopyala</button></div>
             <div class="muted">Webhook Secret</div><div class="row"><span id="s_secret" class="mono nowrap"></span><button class="ghost right" data-copy="#s_secret">Kopyala</button></div>
           </div>
+
+          <div style="margin-top:12px">
+            <h4>cURL Örneği (Bearer ile, sessionId olmadan)</h4>
+            <pre id="s_curl" class="mono" style="white-space:pre-wrap; background:#f7f7f9; padding:10px; border-radius:8px; border:1px solid var(--line)"></pre>
+            <button class="ghost right" data-copy="#s_curl">cURL Kopyala</button>
+          </div>
+
           <div style="margin-top:12px">
             <h4>QR / Bağlantı</h4>
             <div id="qrBox" class="row" style="gap:12px; align-items:flex-start"></div>
@@ -223,6 +230,8 @@
       el('s_api').textContent = s.api_key || '';
       el('s_secret').textContent = s.webhook_secret || '';
       el('w_url').value = s.webhook_url || '';
+      // cURL örneğini güncelle
+      updateCurlExample();
       // form varsayılan alıcı kutularını doldurmak istersen:
       // el('toText').value = ''; el('toMedia').value = '';
 

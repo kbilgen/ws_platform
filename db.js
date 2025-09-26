@@ -150,6 +150,16 @@ const DB = {
     }
   },
 
+  async getByApiKey(apiKey) {
+    try {
+      const r = await pool.query(`select * from sessions where api_key = $1`, [apiKey]);
+      return r.rows[0] || null;
+    } catch (error) {
+      console.error('DB getByApiKey error:', error.message);
+      throw error;
+    }
+  },
+
   async list() {
     try {
       const r = await pool.query(`select * from sessions order by created_at desc`);
