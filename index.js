@@ -150,6 +150,7 @@ app.get('/config.js', (req, res) => {
     window.ENV_SUPABASE_ANON_KEY = ${JSON.stringify(process.env.SUPABASE_ANON_KEY || '')};
     window.ENV_TURNSTILE_SITE_KEY = ${JSON.stringify(process.env.TURNSTILE_SITE_KEY || '')};
     window.ENV_HCAPTCHA_SITE_KEY = ${JSON.stringify(process.env.HCAPTCHA_SITE_KEY || '')};
+    window.ENV_PUBLIC_BASE_URL = ${JSON.stringify(process.env.PUBLIC_BASE_URL || '')};
   `);
 });
 
