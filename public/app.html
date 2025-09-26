@@ -171,6 +171,39 @@
           <button id="createSessionEmpty" class="btn" style="margin-top:10px">Create Session</button>
         </div>
       </div>
+
+      <!-- Session Detail + QR -->
+      <div id="sessionDetail" class="card span-12" style="display:none; margin-top:16px">
+        <div class="row" style="justify-content:space-between; align-items:center">
+          <h3>Selected Session</h3>
+          <div id="selStatus" class="pill">-</div>
+        </div>
+        <div id="selInfo" class="muted">Select a session to see details and QR.</div>
+        <div id="selBody" style="display:none; margin-top:10px">
+          <div class="row" style="gap:12px; flex-wrap:wrap">
+            <div>
+              <div class="muted">Session ID</div>
+              <div id="selId" style="font-family:ui-monospace,Menlo,monospace"></div>
+            </div>
+            <div>
+              <div class="muted">Name</div>
+              <div id="selName"></div>
+            </div>
+            <div>
+              <div class="muted">API Key</div>
+              <div id="selApi" style="font-family:ui-monospace,Menlo,monospace"></div>
+            </div>
+          </div>
+          <div style="margin-top:12px">
+            <h4 style="margin:0 0 8px 0">QR / Connection</h4>
+            <div id="qrBox" class="row" style="gap:12px; align-items:flex-start"></div>
+            <div class="row" style="gap:8px; margin-top:8px">
+              <button id="showQRBtn" class="btn">Show / Refresh QR</button>
+              <span class="muted">Open WhatsApp → Linked Devices and scan.</span>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
 
     <div id="view_subscription" class="container" style="display:none">
@@ -195,7 +228,7 @@
 
   const headers = { 'Authorization': 'Bearer ' + token, 'Content-Type':'application/json' };
 
-  const state = { sessions: [], sse:null, recent:[], msgCount:0 };
+  const state = { sessions: [], sse:null, recent:[], msgCount:0, selected:null, qrTimer:null };
 
   function setUserPill(email){ document.getElementById('userPill').textContent = email || 'Signed in'; }
   (async ()=>{
@@ -232,9 +265,14 @@
     const r = await fetch('/admin/sessions', { headers });
     const j = await r.json();
     if(!j.ok){ return; }
+    const prevId = state.selected?.id || null;
     state.sessions = j.sessions || [];
     renderSessions();
     renderPlan();
+    if(prevId){
+      const ex = state.sessions.find(x=>x.id===prevId);
+      if(ex){ selectSession(prevId); }
+    }
   }
 
   function renderPlan(){
@@ -278,8 +316,52 @@
         </div>
         <div>${pill(s.status)}</div>
       </div>`;
+      div.style.cursor = 'pointer';
+      div.onclick = () => selectSession(s.id);
       list.appendChild(div);
     });
+  }
+
+  // Session selection and QR helpers
+  function selectSession(id){
+    const s = state.sessions.find(x=>x.id===id);
+    if(!s){ return; }
+    state.selected = s;
+    document.getElementById('sessionDetail').style.display = 'block';
+    document.getElementById('selInfo').style.display = 'none';
+    document.getElementById('selBody').style.display = 'block';
+    document.getElementById('selId').textContent = s.id;
+    document.getElementById('selName').textContent = s.name || s.id;
+    document.getElementById('selApi').textContent = s.api_key || '';
+    document.getElementById('selStatus').innerHTML = pill(s.status);
+  }
+
+  async function showQR(){
+    clearInterval(state.qrTimer);
+    const box = document.getElementById('qrBox');
+    box.innerHTML = '<span class="muted">Waiting QR…</span>';
+    await fetchQROnce();
+    state.qrTimer = setInterval(fetchQROnce, 3000);
+  }
+
+  async function fetchQROnce(){
+    const s = state.selected;
+    if(!s) return;
+    try{
+      const r = await fetch(`/admin/sessions/${encodeURIComponent(s.id)}/qr`, { headers });
+      const j = await r.json();
+      const box = document.getElementById('qrBox');
+      if(!j.ok){ box.textContent = 'Failed to load QR'; return; }
+      if(j.ready){
+        clearInterval(state.qrTimer);
+        box.innerHTML = '<span class="pill ok">Connected ✔</span>';
+      } else if(j.qr){
+        const img = new Image(); img.src = j.qr; img.style.maxWidth = '260px'; img.style.borderRadius='8px'; img.style.border='1px solid var(--line)';
+        box.innerHTML = ''; box.appendChild(img);
+      } else {
+        box.innerHTML = '<span class="muted">QR not ready, retrying…</span>';
+      }
+    }catch(e){ /* noop */ }
   }
 
   document.getElementById('refreshSessions').onclick = loadSessions;
@@ -288,6 +370,7 @@
   document.getElementById('dashCreate').onclick = ()=>{ show('sessions'); createSession(); };
   document.getElementById('search').oninput = renderSessions;
   document.getElementById('statusFilter').onchange = renderSessions;
+  document.getElementById('showQRBtn').onclick = showQR;
 
   async function createSession(){
     try{
@@ -296,6 +379,10 @@
       const j = await r.json();
       if(!j.ok) throw new Error(j.error||'create failed');
       await loadSessions();
+      if(j.id){
+        selectSession(j.id);
+        showQR();
+      }
     }catch(e){ alert(e.message); }
   }
 
