@@ -205,6 +205,148 @@
               <span class="muted">Open WhatsApp → Linked Devices and scan.</span>
             </div>
           </div>
+
+          <div style="margin-top:18px">
+            <h4 style="margin:0 0 8px 0">API Playground</h4>
+            <p class="muted">This section exposes all supported APIs with forms and ready-to-copy cURL examples. Use your selected session's API Key for per-session endpoints, or the unified Bearer endpoint.</p>
+
+            <div class="grid">
+              <div class="card span-6">
+                <h3>Text Message</h3>
+                <div class="row" style="gap:8px"><input id="ap_toText" placeholder="9053XXXXXXX or chatId" style="flex:1" /></div>
+                <div style="margin-top:6px"><input id="ap_msgText" placeholder="Message..." style="width:100%" /></div>
+                <div class="row" style="gap:8px; margin-top:8px">
+                  <button id="ap_sendText" class="btn">Send</button>
+                  <button id="ap_copyCurlText" class="btn">Copy cURL</button>
+                </div>
+                <div id="ap_textResp" class="muted" style="margin-top:6px"></div>
+              </div>
+
+              <div class="card span-6">
+                <h3>Media Message</h3>
+                <div class="row" style="gap:8px"><input id="ap_toMedia" placeholder="9053XXXXXXX or chatId" style="flex:1" /></div>
+                <div class="row" style="gap:8px; margin-top:6px"><input id="ap_mediaFile" type="file" /><input id="ap_caption" placeholder="Caption (optional)" style="flex:1" /></div>
+                <div class="row" style="gap:8px; margin-top:8px">
+                  <button id="ap_sendMedia" class="btn">Send</button>
+                  <button id="ap_copyCurlMedia" class="btn">Copy cURL</button>
+                </div>
+                <div id="ap_mediaResp" class="muted" style="margin-top:6px"></div>
+              </div>
+
+              <div class="card span-6">
+                <h3>Sticker</h3>
+                <div class="row" style="gap:8px"><input id="ap_toSticker" placeholder="9053XXXXXXX or chatId" style="flex:1" /></div>
+                <div class="row" style="gap:8px; margin-top:6px"><input id="ap_stickerFile" type="file" accept="image/*" /><input id="ap_stickerAuthor" placeholder="Author (opt)" /><input id="ap_stickerName" placeholder="Name (opt)" /></div>
+                <div class="row" style="gap:8px; margin-top:8px">
+                  <button id="ap_sendSticker" class="btn">Send</button>
+                  <button id="ap_copyCurlSticker" class="btn">Copy cURL</button>
+                </div>
+                <div id="ap_stickerResp" class="muted" style="margin-top:6px"></div>
+              </div>
+
+              <div class="card span-6">
+                <h3>Location</h3>
+                <div class="row" style="gap:8px"><input id="ap_toLoc" placeholder="9053XXXXXXX or chatId" style="flex:1" /><input id="ap_lat" placeholder="Lat" /><input id="ap_lng" placeholder="Lng" /></div>
+                <div style="margin-top:6px"><input id="ap_locDesc" placeholder="Description (opt)" style="width:100%" /></div>
+                <div class="row" style="gap:8px; margin-top:8px">
+                  <button id="ap_sendLoc" class="btn">Send</button>
+                  <button id="ap_copyCurlLoc" class="btn">Copy cURL</button>
+                </div>
+                <div id="ap_locResp" class="muted" style="margin-top:6px"></div>
+              </div>
+
+              <div class="card span-6">
+                <h3>Poll</h3>
+                <div class="row" style="gap:8px"><input id="ap_toPoll" placeholder="9053XXXXXXX or chatId" style="flex:1" /></div>
+                <div class="row" style="gap:8px; margin-top:6px"><input id="ap_pollQ" placeholder="Question" style="flex:1" /></div>
+                <div class="row" style="gap:8px; margin-top:6px"><input id="ap_pollOpts" placeholder="Options (comma separated)" style="flex:1" /><label class="row" style="gap:6px"><input id="ap_pollMulti" type="checkbox" style="width:auto" />Multi</label></div>
+                <div class="row" style="gap:8px; margin-top:8px">
+                  <button id="ap_sendPoll" class="btn">Send</button>
+                  <button id="ap_copyCurlPoll" class="btn">Copy cURL</button>
+                </div>
+                <div id="ap_pollResp" class="muted" style="margin-top:6px"></div>
+              </div>
+
+              <div class="card span-6">
+                <h3>React to Message</h3>
+                <div class="row" style="gap:8px"><input id="ap_msgId" placeholder="message._serialized" style="flex:1" /><input id="ap_emoji" placeholder="👍 😀 🔥" /></div>
+                <div class="row" style="gap:8px; margin-top:8px">
+                  <button id="ap_sendReact" class="btn">Send</button>
+                  <button id="ap_copyCurlReact" class="btn">Copy cURL</button>
+                </div>
+                <div id="ap_reactResp" class="muted" style="margin-top:6px"></div>
+              </div>
+
+              <div class="card span-6">
+                <h3>Group Management</h3>
+                <div style="font-weight:600; margin-top:4px">Create Group</div>
+                <div class="row" style="gap:8px; margin-top:6px"><input id="ap_gName" placeholder="Group name" style="flex:1" /><input id="ap_gParts" placeholder="Participants (9053...,9053...)" style="flex:1" /></div>
+                <div class="row" style="gap:8px; margin-top:6px"><button id="ap_gCreate" class="btn">Create</button><button id="ap_copyCurlGCreate" class="btn">Copy cURL</button></div>
+                <div id="ap_gCreateResp" class="muted" style="margin-top:6px"></div>
+
+                <div style="font-weight:600; margin-top:10px">Members & Admin</div>
+                <div class="row" style="gap:8px; margin-top:6px"><input id="ap_gId" placeholder="Group ID (..@g.us)" style="flex:1" /><input id="ap_gParts2" placeholder="Participants (9053...,9053...)" style="flex:1" /></div>
+                <div class="row" style="gap:8px; margin-top:6px">
+                  <button id="ap_gAdd" class="btn">Add</button>
+                  <button id="ap_gRemove" class="btn">Remove</button>
+                  <button id="ap_gPromote" class="btn">Promote</button>
+                  <button id="ap_gDemote" class="btn">Demote</button>
+                </div>
+                <div class="row" style="gap:8px; margin-top:6px">
+                  <button id="ap_copyCurlGAdd" class="btn">cURL Add</button>
+                  <button id="ap_copyCurlGRemove" class="btn">cURL Remove</button>
+                  <button id="ap_copyCurlGPromote" class="btn">cURL Promote</button>
+                  <button id="ap_copyCurlGDemote" class="btn">cURL Demote</button>
+                </div>
+                <div id="ap_gMembersResp" class="muted" style="margin-top:6px"></div>
+
+                <div style="font-weight:600; margin-top:10px">Invite Link</div>
+                <div class="row" style="gap:8px; margin-top:6px"><input id="ap_gId2" placeholder="Group ID (..@g.us)" style="flex:1" />
+                  <button id="ap_gInvite" class="btn">Get Link</button>
+                  <button id="ap_gRevoke" class="btn">Revoke</button>
+                  <button id="ap_copyCurlGInvite" class="btn">cURL Get</button>
+                  <button id="ap_copyCurlGRevoke" class="btn">cURL Revoke</button>
+                </div>
+                <div id="ap_gInviteResp" class="muted" style="margin-top:6px"></div>
+              </div>
+
+              <div class="card span-6">
+                <h3>Chat & Contact</h3>
+                <div style="font-weight:600; margin-top:4px">Mute/Unmute Chat</div>
+                <div class="row" style="gap:8px; margin-top:6px"><input id="ap_chatId" placeholder="chatId (9053...@c.us / ...@g.us)" style="flex:1" /><input id="ap_muteMs" placeholder="ms (opt)" /></div>
+                <div class="row" style="gap:8px; margin-top:6px"><button id="ap_chatMute" class="btn">Mute</button><button id="ap_chatUnmute" class="btn">Unmute</button><button id="ap_copyCurlMute" class="btn">cURL</button></div>
+                <div id="ap_chatResp" class="muted" style="margin-top:6px"></div>
+
+                <div style="font-weight:600; margin-top:10px">Block/Unblock</div>
+                <div class="row" style="gap:8px; margin-top:6px"><input id="ap_contactId" placeholder="9053... or 9053...@c.us" style="flex:1" /><button id="ap_block" class="btn">Block</button><button id="ap_unblock" class="btn">Unblock</button><button id="ap_copyCurlBlock" class="btn">cURL</button></div>
+                <div id="ap_blockResp" class="muted" style="margin-top:6px"></div>
+
+                <div style="font-weight:600; margin-top:10px">Profile Info</div>
+                <div class="row" style="gap:8px; margin-top:6px"><input id="ap_profileId" placeholder="9053... or chatId" style="flex:1" /><button id="ap_profileGet" class="btn">Get</button><button id="ap_copyCurlProfile" class="btn">cURL</button></div>
+                <pre id="ap_profileResp" class="muted" style="white-space:pre-wrap"></pre>
+              </div>
+
+              <div class="card span-12">
+                <h3>Unified Bearer Endpoint cURL</h3>
+                <pre id="ap_curlUnified" style="white-space:pre-wrap; font-family:ui-monospace,Menlo,monospace"></pre>
+                <button id="ap_copyCurlUnified" class="btn">Copy</button>
+                <p class="muted" style="margin-top:8px">This endpoint uses Authorization: Bearer &lt;api_key&gt; and does not require sessionId in the URL.</p>
+              </div>
+
+              <div class="card span-12">
+                <h3>Kanallar</h3>
+                <p class="muted">Channel chats are supported: use the channel chatId in the To field with Text/Media forms above. Library support may vary over time.</p>
+              </div>
+
+              <div class="card span-12">
+                <h3>Yakında</h3>
+                <ul>
+                  <li>Anketlere oy verme</li>
+                  <li>Topluluklar</li>
+                </ul>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -337,6 +479,8 @@
     document.getElementById('selName').textContent = s.name || s.id;
     document.getElementById('selApi').textContent = s.api_key || '';
     document.getElementById('selStatus').innerHTML = pill(s.status);
+    // refresh cURL examples for this session
+    try{ refreshAllCurlExamples(); }catch{}
   }
 
   async function showQR(){
@@ -403,6 +547,106 @@
       alert('Session deleted');
     }catch(e){ alert('Delete error: '+ (e.message||e)); }
   }
+
+  // ===== API Playground Helpers =====
+  function baseUrl(){ const b = (window.ENV_PUBLIC_BASE_URL||'').trim(); return b? b : location.origin; }
+  function apiKey(){ return state.selected?.api_key || '<api_key>'; }
+  function sid(){ return state.selected?.id || '<sessionId>'; }
+  function setText(id, t){ const el = document.getElementById(id); if(el) el.textContent = t; }
+  async function fileToDataURL(inputId){ const f = document.getElementById(inputId).files[0]; if(!f) return null; return new Promise((res,rej)=>{ const r=new FileReader(); r.onload=()=>res(r.result); r.onerror=rej; r.readAsDataURL(f); }); }
+
+  function updateCurlUnified(){
+    const curl = `curl -X POST "${baseUrl()}/api/send-message" \\\n -H "Authorization: Bearer ${apiKey()}" \\\n -H "Content-Type: application/json" \\\n -d '{"to": "+9053XXXXXXXXX", "text": "Hello from API!"}'`;
+    setText('ap_curlUnified', curl);
+  }
+
+  function curlFor(path, body){
+    return `curl -X POST "${baseUrl()}${path}" \\\n -H "Content-Type: application/json" \\\n -H "X-API-Key: ${apiKey()}" \\\n -d '${JSON.stringify(body)}'`;
+  }
+
+  function refreshAllCurlExamples(){
+    updateCurlUnified();
+    const s = state.selected; if(!s) return;
+    // text
+    setText('ap_textResp', curlFor(`/api/${sid()}/send-text`, { to: "+9053XXXXXXX", text: "Hello" }));
+    // media (example without real base64)
+    setText('ap_mediaResp', curlFor(`/api/${sid()}/send-media`, { to: "+9053XXXXXXX", caption: "File", media:{ base64:"data:image/png;base64,BASE64...", filename:"image.png" } }));
+    // sticker
+    setText('ap_stickerResp', curlFor(`/api/${sid()}/send-sticker`, { to: "+9053XXXXXXX", media:{ base64:"data:image/webp;base64,BASE64...", filename:"sticker.webp" }, author:"Brand", name:"Hello" }));
+    // location
+    setText('ap_locResp', curlFor(`/api/${sid()}/send-location`, { to: "+9053XXXXXXX", latitude:41.01, longitude:28.97, description:"Istanbul" }));
+    // poll
+    setText('ap_pollResp', curlFor(`/api/${sid()}/send-poll`, { to: "+9053XXXXXXX", name:"Favori?", options:["A","B"], allowMultipleAnswers:false }));
+    // react
+    setText('ap_reactResp', curlFor(`/api/${sid()}/react`, { messageId:"true_123@c.us_3EB0...", emoji:"👍" }));
+    // group
+    setText('ap_gCreateResp', curlFor(`/api/${sid()}/group/create`, { name:"My Group", participants:["9053....","9053...."] }));
+    setText('ap_gMembersResp', '');
+    setText('ap_gInviteResp', `curl -X GET "${baseUrl()}/api/${sid()}/group/1203...@g.us/invite" -H "X-API-Key: ${apiKey()}"`);
+  }
+
+  // ===== API Playground Actions =====
+  async function ap_sendText(){ const s=state.selected; if(!s) return alert('Select a session'); const to=elv('ap_toText'); const text=elv('ap_msgText'); const r=await fetch(`/api/${s.id}/send-text`, { method:'POST', headers:{'Content-Type':'application/json','X-API-Key':s.api_key}, body: JSON.stringify({ to, text })}); setText('ap_textResp', await r.text()); }
+  async function ap_sendMedia(){ const s=state.selected; if(!s) return alert('Select a session'); const to=elv('ap_toMedia'); const caption=elv('ap_caption'); const b64=await fileToDataURL('ap_mediaFile'); if(!b64) return alert('Select a file'); const r=await fetch(`/api/${s.id}/send-media`, { method:'POST', headers:{'Content-Type':'application/json','X-API-Key':s.api_key}, body: JSON.stringify({ to, caption, media:{ base64:b64, filename:(document.getElementById('ap_mediaFile').files[0].name) } })}); setText('ap_mediaResp', await r.text()); }
+  async function ap_sendSticker(){ const s=state.selected; if(!s) return alert('Select a session'); const to=elv('ap_toSticker'); const author=elv('ap_stickerAuthor'); const name=elv('ap_stickerName'); const b64=await fileToDataURL('ap_stickerFile'); if(!b64) return alert('Select an image'); const r=await fetch(`/api/${s.id}/send-sticker`, { method:'POST', headers:{'Content-Type':'application/json','X-API-Key':s.api_key}, body: JSON.stringify({ to, media:{ base64:b64, filename:(document.getElementById('ap_stickerFile').files[0].name) }, author, name })}); setText('ap_stickerResp', await r.text()); }
+  async function ap_sendLoc(){ const s=state.selected; if(!s) return alert('Select a session'); const to=elv('ap_toLoc'); const lat=parseFloat(elv('ap_lat')); const lng=parseFloat(elv('ap_lng')); const description=elv('ap_locDesc'); const r=await fetch(`/api/${s.id}/send-location`, { method:'POST', headers:{'Content-Type':'application/json','X-API-Key':s.api_key}, body: JSON.stringify({ to, latitude:lat, longitude:lng, description })}); setText('ap_locResp', await r.text()); }
+  async function ap_sendPoll(){ const s=state.selected; if(!s) return alert('Select a session'); const to=elv('ap_toPoll'); const name=elv('ap_pollQ'); const options=elv('ap_pollOpts').split(',').map(x=>x.trim()).filter(Boolean); const allowMultipleAnswers=document.getElementById('ap_pollMulti').checked; const r=await fetch(`/api/${s.id}/send-poll`, { method:'POST', headers:{'Content-Type':'application/json','X-API-Key':s.api_key}, body: JSON.stringify({ to, name, options, allowMultipleAnswers })}); setText('ap_pollResp', await r.text()); }
+  async function ap_sendReact(){ const s=state.selected; if(!s) return alert('Select a session'); const messageId=elv('ap_msgId'); const emoji=elv('ap_emoji'); const r=await fetch(`/api/${s.id}/react`, { method:'POST', headers:{'Content-Type':'application/json','X-API-Key':s.api_key}, body: JSON.stringify({ messageId, emoji })}); setText('ap_reactResp', await r.text()); }
+
+  function elv(id){ const e=document.getElementById(id); return (e?.value||'').trim(); }
+  function splitPhones(v){ return (v||'').split(',').map(x=>x.trim()).filter(Boolean); }
+  async function ap_gCreate(){ const s=state.selected; if(!s) return alert('Select a session'); const name=elv('ap_gName'); const participants=splitPhones(elv('ap_gParts')); const r=await fetch(`/api/${s.id}/group/create`, { method:'POST', headers:{'Content-Type':'application/json','X-API-Key':s.api_key}, body: JSON.stringify({ name, participants })}); setText('ap_gCreateResp', await r.text()); }
+  async function ap_gMembers(action){ const s=state.selected; if(!s) return alert('Select a session'); const groupId=elv('ap_gId'); const participants=splitPhones(elv('ap_gParts2')); const r=await fetch(`/api/${s.id}/group/${action}`, { method:'POST', headers:{'Content-Type':'application/json','X-API-Key':s.api_key}, body: JSON.stringify({ groupId, participants })}); setText('ap_gMembersResp', await r.text()); }
+  async function ap_gInvite(){ const s=state.selected; if(!s) return alert('Select a session'); const gid=elv('ap_gId2'); const r=await fetch(`/api/${s.id}/group/${encodeURIComponent(gid)}/invite`, { headers:{'X-API-Key': s.api_key} }); setText('ap_gInviteResp', await r.text()); }
+  async function ap_gRevoke(){ const s=state.selected; if(!s) return alert('Select a session'); const gid=elv('ap_gId2'); const r=await fetch(`/api/${s.id}/group/${encodeURIComponent(gid)}/revoke-invite`, { method:'POST', headers:{'X-API-Key': s.api_key} }); setText('ap_gInviteResp', await r.text()); }
+  async function ap_chatMute(){ const s=state.selected; if(!s) return alert('Select a session'); const chatId=elv('ap_chatId'); const durationMs=parseInt(elv('ap_muteMs')||''); const r=await fetch(`/api/${s.id}/chat/mute`, { method:'POST', headers:{'Content-Type':'application/json','X-API-Key':s.api_key}, body: JSON.stringify({ chatId, durationMs: isNaN(durationMs)? undefined : durationMs })}); setText('ap_chatResp', await r.text()); }
+  async function ap_chatUnmute(){ const s=state.selected; if(!s) return alert('Select a session'); const chatId=elv('ap_chatId'); const r=await fetch(`/api/${s.id}/chat/unmute`, { method:'POST', headers:{'Content-Type':'application/json','X-API-Key':s.api_key}, body: JSON.stringify({ chatId })}); setText('ap_chatResp', await r.text()); }
+  async function ap_block(){ const s=state.selected; if(!s) return alert('Select a session'); const contactId=elv('ap_contactId'); const r=await fetch(`/api/${s.id}/contact/block`, { method:'POST', headers:{'Content-Type':'application/json','X-API-Key':s.api_key}, body: JSON.stringify({ contactId })}); setText('ap_blockResp', await r.text()); }
+  async function ap_unblock(){ const s=state.selected; if(!s) return alert('Select a session'); const contactId=elv('ap_contactId'); const r=await fetch(`/api/${s.id}/contact/unblock`, { method:'POST', headers:{'Content-Type':'application/json','X-API-Key':s.api_key}, body: JSON.stringify({ contactId })}); setText('ap_blockResp', await r.text()); }
+  async function ap_profileGet(){ const s=state.selected; if(!s) return alert('Select a session'); const id=elv('ap_profileId'); const r=await fetch(`/api/${s.id}/contact/${encodeURIComponent(id)}/profile`, { headers:{'X-API-Key': s.api_key} }); try{ const j=await r.json(); document.getElementById('ap_profileResp').textContent = JSON.stringify(j,null,2); }catch{ setText('ap_profileResp', await r.text()); }
+  }
+
+  function wireApiPlayground(){
+    const bind = (id, fn) => { const b=document.getElementById(id); if(b) b.onclick = fn; };
+    bind('ap_sendText', ap_sendText);
+    bind('ap_sendMedia', ap_sendMedia);
+    bind('ap_sendSticker', ap_sendSticker);
+    bind('ap_sendLoc', ap_sendLoc);
+    bind('ap_sendPoll', ap_sendPoll);
+    bind('ap_sendReact', ap_sendReact);
+    bind('ap_gCreate', ap_gCreate);
+    bind('ap_gAdd', ()=>ap_gMembers('add'));
+    bind('ap_gRemove', ()=>ap_gMembers('remove'));
+    bind('ap_gPromote', ()=>ap_gMembers('promote'));
+    bind('ap_gDemote', ()=>ap_gMembers('demote'));
+    bind('ap_gInvite', ap_gInvite);
+    bind('ap_gRevoke', ap_gRevoke);
+    bind('ap_chatMute', ap_chatMute);
+    bind('ap_chatUnmute', ap_chatUnmute);
+    bind('ap_block', ap_block);
+    bind('ap_unblock', ap_unblock);
+    bind('ap_profileGet', ap_profileGet);
+    // copy buttons for curl from response areas
+    bind('ap_copyCurlUnified', ()=>copy('#ap_curlUnified'));
+    bind('ap_copyCurlText',    ()=>copy('#ap_textResp'));
+    bind('ap_copyCurlMedia',   ()=>copy('#ap_mediaResp'));
+    bind('ap_copyCurlSticker', ()=>copy('#ap_stickerResp'));
+    bind('ap_copyCurlLoc',     ()=>copy('#ap_locResp'));
+    bind('ap_copyCurlPoll',    ()=>copy('#ap_pollResp'));
+    bind('ap_copyCurlReact',   ()=>copy('#ap_reactResp'));
+    bind('ap_copyCurlGCreate', ()=>copy('#ap_gCreateResp'));
+    bind('ap_copyCurlGAdd',    ()=>copy('#ap_gMembersResp'));
+    bind('ap_copyCurlGRemove', ()=>copy('#ap_gMembersResp'));
+    bind('ap_copyCurlGPromote',()=>copy('#ap_gMembersResp'));
+    bind('ap_copyCurlGDemote', ()=>copy('#ap_gMembersResp'));
+    bind('ap_copyCurlGInvite', ()=>copy('#ap_gInviteResp'));
+    bind('ap_copyCurlGRevoke', ()=>copy('#ap_gInviteResp'));
+    bind('ap_copyCurlMute',    ()=>copy('#ap_chatResp'));
+    bind('ap_copyCurlBlock',   ()=>copy('#ap_blockResp'));
+    bind('ap_copyCurlProfile', ()=>copy('#ap_profileResp'));
+  }
+
+  function copy(sel){ const t=document.querySelector(sel)?.textContent||''; if(!t) return; navigator.clipboard.writeText(t); }
 
   // Recent Activity + Message Activity via SSE
   function startSSE(){
