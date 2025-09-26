@@ -12,7 +12,7 @@ const fs = require('fs');
 const { EventEmitter } = require('events');
 const { Client, LocalAuth, MessageMedia, Location, Poll } = require('whatsapp-web.js');
 
-const { DB } = require('./db'); // <<<< Supabase Postgres CRUD
+const { DB, pool } = require('./db'); // <<<< Supabase Postgres CRUD
 const { createClient } = require('@supabase/supabase-js');
 
 // ====== ENV ======
@@ -197,6 +197,32 @@ async function supaAuth(req, res, next) {
   }
 }
 
+// ===== Reminders helpers =====
+function tzOffsetHours(tz){
+  // Minimal TZ support without external deps
+  if (!tz || tz.toUpperCase() === 'UTC') return 0;
+  if (tz === 'Europe/Istanbul') return 3; // Permanent UTC+3
+  return 0; // default UTC
+}
+function computeRunAtUTC({ date, time, tz }){
+  // date: YYYY-MM-DD, time: HH:MM (24h)
+  try {
+    const [y, m, d] = (date||'').split('-').map(n=>parseInt(n,10));
+    const [hh, mm] = (time||'').split(':').map(n=>parseInt(n,10));
+    if (!y || !m || !d || isNaN(hh) || isNaN(mm)) return null;
+    // Build local time in tz then convert to UTC by subtracting tz offset
+    const off = tzOffsetHours(tz);
+    const utcMs = Date.UTC(y, (m-1), d, (hh - off), mm, 0, 0);
+    return new Date(utcMs);
+  } catch { return null; }
+}
+function nextFromRepeat(prev, repeat){
+  const dt = new Date(prev.getTime());
+  if (repeat === 'daily') { dt.setUTCDate(dt.getUTCDate()+1); return dt; }
+  if (repeat === 'weekly'){ dt.setUTCDate(dt.getUTCDate()+7); return dt; }
+  return null;
+}
+
 // Tenant API key auth (more flexible)
 // Accept API key from multiple locations to avoid client pitfalls:
 // - Header: X-API-Key: <key>
@@ -271,6 +297,47 @@ app.post('/admin/sessions', supaAuth, async (req, res) => {
   await DB.setApiKey(id, api);
   await DB.setWebhook(id, null, secret);
   res.json({ ok: true, id, api_key: api, webhook_secret: secret });
+});
+
+// ===== Reminders (CRUD) =====
+app.get('/admin/reminders', supaAuth, async (req, res) => {
+  try {
+    const rows = await DB.listRemindersByUser(req.user.id);
+    res.json({ ok: true, reminders: rows });
+  } catch (e) { res.status(500).json({ ok:false, error: e?.message || 'failed to list' }); }
+});
+
+app.post('/admin/reminders', supaAuth, async (req, res) => {
+  try {
+    const { recipient, message, date, time, tz, sessionId, repeat } = req.body || {};
+    if (!recipient || !message) return res.status(400).json({ ok:false, error:'recipient & message required' });
+    if (!sessionId) return res.status(400).json({ ok:false, error:'sessionId required' });
+    // Ownership check for session
+    const s = await DB.getByIdAndUser(sessionId, req.user.id);
+    if (!s) return res.status(403).json({ ok:false, error:'invalid sessionId' });
+
+    const when = computeRunAtUTC({ date, time, tz: tz || 'Europe/Istanbul' });
+    if (!when || isNaN(when.getTime())) return res.status(400).json({ ok:false, error:'invalid date/time' });
+
+    const id = 'rm_' + crypto.randomBytes(8).toString('hex');
+    await DB.createReminder({
+      id,
+      user_id: req.user.id,
+      session_id: sessionId,
+      recipient: recipient,
+      message: message,
+      run_at: when,
+      status: 'planned',
+      tz: tz || 'Europe/Istanbul',
+      cron: repeat === 'daily' ? 'daily' : repeat === 'weekly' ? 'weekly' : null
+    });
+    res.json({ ok:true, id });
+  } catch (e) { res.status(500).json({ ok:false, error: e?.message || 'failed to create' }); }
+});
+
+app.delete('/admin/reminders/:id', supaAuth, async (req, res) => {
+  try { await DB.deleteReminder(req.params.id, req.user.id); res.json({ ok:true }); }
+  catch (e) { res.status(500).json({ ok:false, error: e?.message || 'failed to delete' }); }
 });
 
 // QR görüntüleme
@@ -665,5 +732,48 @@ async function bootRehydrateAllSessions() {
   }
 }
 bootRehydrateAllSessions();
+
+// ===== Reminder Worker =====
+let workerBusy = false;
+async function countRuns(reminderId){
+  try { const r = await pool.query('select count(*)::int as c from reminder_runs where reminder_id = $1', [reminderId]); return r.rows[0]?.c || 0; } catch { return 0; }
+}
+async function processRemindersBatch(){
+  if (workerBusy) return; workerBusy = true;
+  try{
+    const due = await DB.claimDueReminders(10);
+    for (const rm of due){
+      const attempt0 = await countRuns(rm.id);
+      try{
+        // Ensure session exists and is ready
+        const e = clients.get(rm.session_id);
+        if (!e || !e.ready) throw new Error('session not ready');
+        await sendText(rm.session_id, rm.recipient, rm.message);
+        await DB.logReminderRun(rm.id, attempt0+1, 'success');
+        if (rm.cron === 'daily' || rm.cron === 'weekly'){
+          const next = nextFromRepeat(new Date(rm.run_at), rm.cron);
+          if (next) { await DB.rescheduleReminder(rm.id, next); }
+          else { await DB.markReminderStatus(rm.id, 'completed'); }
+        } else {
+          await DB.markReminderStatus(rm.id, 'completed');
+        }
+      } catch (err){
+        const errMsg = (err?.message || String(err)).slice(0, 500);
+        await DB.logReminderRun(rm.id, attempt0+1, 'failed', errMsg);
+        if (attempt0+1 < 3){
+          const next = new Date(Date.now() + 5*60*1000);
+          await DB.rescheduleReminder(rm.id, next);
+        } else {
+          await DB.markReminderStatus(rm.id, 'failed');
+        }
+      }
+    }
+  } catch (e){
+    console.error('Reminder worker error:', e?.message || e);
+  } finally {
+    workerBusy = false;
+  }
+}
+setInterval(processRemindersBatch, 30 * 1000);
 
 app.listen(PORT, () => console.log('HTTP listening on :' + PORT));

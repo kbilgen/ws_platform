@@ -2,7 +2,7 @@
 <html lang="tr">
 <head>
   <meta charset="utf-8" />
-  <title>WasenderApi — Panel</title>
+  <title>Whatsapp-Portal — Panel</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
   <script src="/config.js"></script>
@@ -73,6 +73,7 @@
       <div class="muted">Platform</div>
       <button id="m_dashboard" class="active">Dashboard</button>
       <button id="m_sessions">Sessions</button>
+      <button id="m_reminders">Reminders</button>
       <button id="m_subscription">Subscription</button>
     </div>
     <div class="footer">
@@ -338,15 +339,51 @@
                 <p class="muted">Channel chats are supported: use the channel chatId in the To field with Text/Media forms above. Library support may vary over time.</p>
               </div>
 
-              <div class="card span-12">
-                <h3>Yakında</h3>
-                <ul>
-                  <li>Anketlere oy verme</li>
-                  <li>Topluluklar</li>
-                </ul>
-              </div>
             </div>
           </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="view_reminders" class="container" style="display:none">
+      <div class="grid">
+        <div class="card span-6">
+          <h3>Create Reminder</h3>
+          <div class="row" style="gap:8px; margin-top:6px">
+            <select id="rm_session" style="flex:1"></select>
+          </div>
+          <div class="row" style="gap:8px; margin-top:6px">
+            <input id="rm_recipient" placeholder="Recipient (9053... or chatId)" style="flex:1" />
+          </div>
+          <div class="row" style="gap:8px; margin-top:6px">
+            <input id="rm_message" placeholder="Message" style="flex:1" />
+          </div>
+          <div class="row" style="gap:8px; margin-top:6px">
+            <input id="rm_date" type="date" />
+            <input id="rm_time" type="time" />
+            <select id="rm_tz">
+              <option value="Europe/Istanbul">Europe/Istanbul (UTC+3)</option>
+              <option value="UTC">UTC</option>
+            </select>
+          </div>
+          <div class="row" style="gap:8px; margin-top:6px">
+            <label class="muted">Repeat</label>
+            <select id="rm_repeat">
+              <option value="none">None</option>
+              <option value="daily">Every day</option>
+              <option value="weekly">Every week</option>
+            </select>
+          </div>
+          <div class="row" style="gap:8px; margin-top:10px">
+            <button id="rm_create" class="btn primary">Create</button>
+          </div>
+          <div id="rm_create_resp" class="muted" style="margin-top:8px"></div>
+        </div>
+
+        <div class="card span-6">
+          <h3>My Reminders</h3>
+          <div id="rm_list" class="list"></div>
+          <div id="rm_empty" class="empty" style="display:none">No reminders yet.</div>
         </div>
       </div>
     </div>
@@ -389,6 +426,7 @@
   const views = {
     dashboard: document.getElementById('view_dashboard'),
     sessions: document.getElementById('view_sessions'),
+    reminders: document.getElementById('view_reminders'),
     subscription: document.getElementById('view_subscription'),
   };
   function show(view){
@@ -400,6 +438,7 @@
   }
   document.getElementById('m_dashboard').onclick = ()=>show('dashboard');
   document.getElementById('m_sessions').onclick = ()=>show('sessions');
+  document.getElementById('m_reminders').onclick = ()=>{ populateReminderSessions(); loadReminders(); show('reminders'); };
   document.getElementById('m_subscription').onclick = ()=>show('subscription');
 
   // Logout
@@ -680,6 +719,65 @@
     const el = document.getElementById('recent');
     el.textContent = kind==='message' ? 'New message arrived' : 'Session status changed';
   }
+
+  // ===== Reminders wiring =====
+  async function populateReminderSessions(){
+    const sel = document.getElementById('rm_session'); if(!sel) return;
+    sel.innerHTML = '';
+    (state.sessions||[]).forEach(s=>{
+      const opt = document.createElement('option'); opt.value = s.id; opt.textContent = `${s.name||s.id} (${s.status})`; sel.appendChild(opt);
+    });
+    if (!state.sessions || state.sessions.length===0){ const opt=document.createElement('option'); opt.value=''; opt.textContent='No session available'; sel.appendChild(opt); }
+  }
+  async function loadReminders(){
+    try{
+      const r = await fetch('/admin/reminders', { headers });
+      const j = await r.json();
+      renderReminders(j.ok ? (j.reminders||[]) : []);
+    }catch{ renderReminders([]); }
+  }
+  function renderReminders(rows){
+    const list = document.getElementById('rm_list'); const empty = document.getElementById('rm_empty');
+    list.innerHTML='';
+    if(!rows || rows.length===0){ empty.style.display='flex'; list.style.display='none'; return; }
+    empty.style.display='none'; list.style.display='block';
+    rows.forEach(rm=>{
+      const div = document.createElement('div'); div.className='item';
+      const when = new Date(rm.run_at);
+      div.innerHTML = `
+        <div class="row" style="justify-content:space-between; gap:8px">
+          <div>
+            <div><b>${rm.message}</b></div>
+            <div class="muted" style="font-family:ui-monospace,Menlo,monospace">to: ${rm.recipient} • at: ${when.toISOString().replace('T',' ').slice(0,16)}Z • status: ${rm.status}</div>
+          </div>
+          <div class="row" style="gap:6px"><button class="btn" data-rm-del="${rm.id}" style="background: var(--bad)">Delete</button></div>
+        </div>`;
+      list.appendChild(div);
+    });
+  }
+  document.addEventListener('click', async (e)=>{
+    const b = e.target.closest('button[data-rm-del]');
+    if(b){ const id = b.getAttribute('data-rm-del'); if(confirm('Delete this reminder?')){ await fetch(`/admin/reminders/${id}`, { method:'DELETE', headers }); await loadReminders(); } }
+  });
+  document.getElementById('rm_create').onclick = async ()=>{
+    const sessionId = document.getElementById('rm_session').value;
+    const recipient = document.getElementById('rm_recipient').value.trim();
+    const message = document.getElementById('rm_message').value.trim();
+    const date = document.getElementById('rm_date').value;
+    const time = document.getElementById('rm_time').value;
+    const tz = document.getElementById('rm_tz').value;
+    const repeat = document.getElementById('rm_repeat').value;
+    const out = document.getElementById('rm_create_resp'); out.textContent='';
+    if(!sessionId){ out.textContent='Select a session'; return; }
+    if(!recipient || !message || !date || !time){ out.textContent='Recipient, message, date and time are required'; return; }
+    try{
+      const r = await fetch('/admin/reminders', { method:'POST', headers, body: JSON.stringify({ sessionId, recipient, message, date, time, tz, repeat }) });
+      const j = await r.json(); if(!j.ok) throw new Error(j.error||'failed');
+      out.textContent = 'Reminder created';
+      document.getElementById('rm_message').value='';
+      await loadReminders();
+    }catch(e){ out.textContent = e.message || 'error'; }
+  };
 
   // init
   loadSessions();

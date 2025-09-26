@@ -46,9 +46,45 @@ pool.on('error', (err) => {
 // Basit migration: sessions tablosuna user_id alanı ekle (varsa atla)
 async function migrate() {
   try {
+    // sessions: ensure multi-tenancy
     await pool.query(`alter table if exists sessions add column if not exists user_id text`);
     await pool.query(`create index if not exists idx_sessions_user on sessions(user_id)`);
-    console.log('DB migrate ok: user_id');
+
+    // reminders: schedule table
+    await pool.query(`
+      create table if not exists reminders (
+        id text primary key,
+        user_id text not null,
+        session_id text,
+        recipient text not null,
+        message text not null,
+        run_at timestamptz not null,
+        status text not null default 'planned', -- planned | running | completed | failed
+        tz text,
+        cron text,
+        created_at timestamptz default now(),
+        updated_at timestamptz default now()
+      )
+    `);
+    await pool.query(`create index if not exists idx_reminders_user on reminders(user_id)`);
+    await pool.query(`create index if not exists idx_reminders_runat on reminders(run_at)`);
+    await pool.query(`create index if not exists idx_reminders_status on reminders(status)`);
+
+    // reminder_runs: execution logs
+    await pool.query(`
+      create table if not exists reminder_runs (
+        id bigserial primary key,
+        reminder_id text not null,
+        attempt int not null,
+        status text not null, -- success | failed
+        error text,
+        run_at timestamptz not null default now(),
+        created_at timestamptz default now()
+      )
+    `);
+    await pool.query(`create index if not exists idx_reminder_runs_reminder on reminder_runs(reminder_id)`);
+
+    console.log('DB migrate ok: sessions.user_id + reminders/reminder_runs');
   } catch (e) {
     console.error('DB migrate error:', e.message);
   }
@@ -208,6 +244,57 @@ const DB = {
       console.error('DB ping error:', error.message);
       throw error;
     }
+  },
+
+  // ===== Reminders =====
+  async createReminder(rm) {
+    try {
+      await pool.query(
+        `insert into reminders (id, user_id, session_id, recipient, message, run_at, status, tz, cron, created_at, updated_at)
+         values ($1,$2,$3,$4,$5,$6,$7,$8,$9, now(), now())`,
+        [rm.id, rm.user_id, rm.session_id || null, rm.recipient, rm.message, rm.run_at, rm.status || 'planned', rm.tz || null, rm.cron || null]
+      );
+    } catch (e) { console.error('DB createReminder error:', e.message); throw e; }
+  },
+  async listRemindersByUser(userId) {
+    try { const r = await pool.query(`select * from reminders where user_id = $1 order by run_at asc`, [userId]); return r.rows; }
+    catch (e) { console.error('DB listRemindersByUser error:', e.message); throw e; }
+  },
+  async getReminder(id) {
+    try { const r = await pool.query(`select * from reminders where id = $1`, [id]); return r.rows[0] || null; }
+    catch (e) { console.error('DB getReminder error:', e.message); throw e; }
+  },
+  async deleteReminder(id, userId) {
+    try { await pool.query(`delete from reminders where id = $1 and user_id = $2`, [id, userId]); }
+    catch (e) { console.error('DB deleteReminder error:', e.message); throw e; }
+  },
+  async claimDueReminders(limit = 5) {
+    try {
+      const r = await pool.query(
+        `update reminders set status = 'running', updated_at = now()
+         where id in (
+           select id from reminders
+           where status = 'planned' and run_at <= now()
+           order by run_at asc
+           limit $1
+           for update skip locked
+         )
+         returning *`
+      , [limit]);
+      return r.rows;
+    } catch (e) { console.error('DB claimDueReminders error:', e.message); throw e; }
+  },
+  async markReminderStatus(id, status) {
+    try { await pool.query(`update reminders set status = $1, updated_at = now() where id = $2`, [status, id]); }
+    catch (e) { console.error('DB markReminderStatus error:', e.message); throw e; }
+  },
+  async rescheduleReminder(id, nextRunAt) {
+    try { await pool.query(`update reminders set run_at = $1, status = 'planned', updated_at = now() where id = $2`, [nextRunAt, id]); }
+    catch (e) { console.error('DB rescheduleReminder error:', e.message); throw e; }
+  },
+  async logReminderRun(reminderId, attempt, status, error) {
+    try { await pool.query(`insert into reminder_runs(reminder_id, attempt, status, error) values ($1,$2,$3,$4)`, [reminderId, attempt, status, error || null]); }
+    catch (e) { console.error('DB logReminderRun error:', e.message); }
   }
 };
 
