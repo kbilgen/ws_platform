@@ -339,9 +339,7 @@
       const apiKey = s.api_key || '<api_key>';
       const exampleTo = '+90xxxxxxxxxx';
       const exampleText = 'Hello from API!';
-      const curl = [
-        `curl -X POST "${base}/api/send-message" \\\n -H "Authorization: Bearer ${apiKey}" \\\n -H "Content-Type: application/json" \\\n -d '{"to": "${exampleTo}", "text": "${exampleText}"}'`
-      ].join('\n');
+      const curl = `curl -X POST "${base}/api/send-message" -H "Authorization: Bearer ${apiKey}" -H "Content-Type: application/json" -d '{"to": "${exampleTo}", "text": "${exampleText}"}'`;
       el('s_curl').textContent = curl;
     }
 

@@ -556,12 +556,12 @@
   async function fileToDataURL(inputId){ const f = document.getElementById(inputId).files[0]; if(!f) return null; return new Promise((res,rej)=>{ const r=new FileReader(); r.onload=()=>res(r.result); r.onerror=rej; r.readAsDataURL(f); }); }
 
   function updateCurlUnified(){
-    const curl = `curl -X POST "${baseUrl()}/api/send-message" \\\n -H "Authorization: Bearer ${apiKey()}" \\\n -H "Content-Type: application/json" \\\n -d '{"to": "+9053XXXXXXXXX", "text": "Hello from API!"}'`;
+    const curl = `curl -X POST "${baseUrl()}/api/send-message" -H "Authorization: Bearer ${apiKey()}" -H "Content-Type: application/json" -d '{"to": "+9053XXXXXXXXX", "text": "Hello from API!"}'`;
     setText('ap_curlUnified', curl);
   }
 
   function curlFor(path, body){
-    return `curl -X POST "${baseUrl()}${path}" \\\n -H "Content-Type: application/json" \\\n -H "X-API-Key: ${apiKey()}" \\\n -d '${JSON.stringify(body)}'`;
+    return `curl -X POST "${baseUrl()}${path}" -H "Content-Type: application/json" -H "X-API-Key: ${apiKey()}" -d '${JSON.stringify(body)}'`;
   }
 
   function refreshAllCurlExamples(){
