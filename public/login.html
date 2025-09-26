@@ -2,36 +2,56 @@
 <html lang="tr">
 <head>
   <meta charset="utf-8" />
-  <title>Admin Login</title>
+  <title>Giriş — Supabase</title>
   <style>
     body { font-family: system-ui, sans-serif; margin: 40px; }
     input, button { padding: 10px; border: 1px solid #ccc; border-radius: 8px; width: 100%; margin-bottom: 12px; }
     button { background: #111; color: #fff; cursor: pointer; }
-    .card { max-width: 360px; margin: auto; border: 1px solid #eee; border-radius: 12px; padding: 24px; }
+    .row{display:flex; gap:8px}
+    .card { max-width: 380px; margin: auto; border: 1px solid #eee; border-radius: 12px; padding: 24px; }
+    .muted{color:#666; font-size:12px}
   </style>
+  <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
 </head>
 <body>
   <div class="card">
-    <h2>Admin Girişi</h2>
-    <input id="username" placeholder="Kullanıcı" />
+    <h2>Giriş</h2>
+    <input id="email" type="email" placeholder="E-posta" />
     <input id="password" type="password" placeholder="Şifre" />
-    <button onclick="login()">Giriş</button>
-    <div id="msg"></div>
+    <div class="row">
+      <button onclick="signIn()">Giriş</button>
+      <button onclick="signUp()" style="background:#555">Kayıt Ol</button>
+    </div>
+    <div id="msg" class="muted"></div>
   </div>
   <script>
-    async function login() {
-      const u = document.getElementById('username').value.trim();
-      const p = document.getElementById('password').value;
-      const r = await fetch('/admin/login', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username: u, password: p })
-      });
-      if (r.ok) {
-        localStorage.setItem('adminAuth', btoa(u + ':' + p));
-        location.href = '/admin.html';
-      } else {
-        document.getElementById('msg').textContent = 'Hatalı giriş!';
-      }
+    const SUPABASE_URL = window.ENV_SUPABASE_URL || null;
+    const SUPABASE_ANON_KEY = window.ENV_SUPABASE_ANON_KEY || null;
+    // Not: Bu değerleri dağıtım ortamında public olarak sağlayın (örn. meta tag veya inline script)
+    // Alternatif olarak .html dosyasını build sırasında doldurabilirsiniz.
+    const url = SUPABASE_URL || (window.SUPABASE_URL || '');
+    const key = SUPABASE_ANON_KEY || (window.SUPABASE_ANON_KEY || '');
+    const supabase = window.supabase.createClient(url, key);
+
+    async function signIn(){
+      const email = document.getElementById('email').value.trim();
+      const password = document.getElementById('password').value;
+      document.getElementById('msg').textContent = '';
+      const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+      if(error){ document.getElementById('msg').textContent = error.message; return; }
+      const token = data.session?.access_token;
+      if(!token){ document.getElementById('msg').textContent = 'Auth başarısız'; return; }
+      localStorage.setItem('sb_token', token);
+      location.href = '/admin.html';
+    }
+
+    async function signUp(){
+      const email = document.getElementById('email').value.trim();
+      const password = document.getElementById('password').value;
+      document.getElementById('msg').textContent = '';
+      const { data, error } = await supabase.auth.signUp({ email, password });
+      if(error){ document.getElementById('msg').textContent = error.message; return; }
+      document.getElementById('msg').textContent = 'Kayıt başarılı. Lütfen gelen doğrulama e-postasını onaylayın, sonra giriş yapın.';
     }
   </script>
 </body>

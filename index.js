@@ -13,12 +13,16 @@ const { EventEmitter } = require('events');
 const { Client, LocalAuth, MessageMedia } = require('whatsapp-web.js');
 
 const { DB } = require('./db'); // <<<< Supabase Postgres CRUD
+const { createClient } = require('@supabase/supabase-js');
 
 // ====== ENV ======
 const PORT = process.env.PORT || 3000;
-const ADMIN_USER = process.env.ADMIN_USER || 'admin';
-const ADMIN_PASS = process.env.ADMIN_PASS || 'admin';
+const ADMIN_USER = process.env.ADMIN_USER || 'admin'; // legacy
+const ADMIN_PASS = process.env.ADMIN_PASS || 'admin'; // legacy
 const EXEC_PATH = process.env.PUPPETEER_EXECUTABLE_PATH || '/usr/bin/chromium';
+const SUPABASE_URL = process.env.SUPABASE_URL || '';
+const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY || '';
+const supabase = SUPABASE_URL && SUPABASE_ANON_KEY ? createClient(SUPABASE_URL, SUPABASE_ANON_KEY) : null;
 
 // ====== Çoklu Client + SSE ======
 const clients = new Map(); // sessionId -> { client, qr, ready }
@@ -44,7 +48,7 @@ async function postWebhook(sessionId, event, data) {
   }
 }
 
-async function createSession({ id, name }) {
+async function createSession({ id, name, userId }) {
   const client = new Client({
     authStrategy: new LocalAuth({ dataPath: path.join(process.cwd(), 'sessions'), clientId: id }),
     puppeteer: { headless: true, args: ['--no-sandbox', '--disable-setuid-sandbox'], executablePath: EXEC_PATH }
@@ -91,6 +95,7 @@ async function createSession({ id, name }) {
   await DB.upsertSession({
     id, name: name || id, status: 'pending',
     api_key: null, webhook_url: null, webhook_secret: null,
+    user_id: userId || null,
     created_at: Date.now()
   });
 
@@ -129,13 +134,31 @@ const app = express();
 app.use(bodyParser.json({ limit: '20mb' }));
 app.use(express.static(path.join(__dirname, 'public')));
 
-// Admin auth — header: X-Admin-Auth: base64("user:pass")
+// Admin auth (legacy) — header: X-Admin-Auth: base64("user:pass")
 function adminAuth(req, res, next) {
   const h = req.headers['x-admin-auth'];
   if (!h) return res.status(401).json({ ok: false, error: 'admin auth required' });
   const [u, p] = Buffer.from(h, 'base64').toString('utf8').split(':');
   if (u === ADMIN_USER && p === ADMIN_PASS) return next();
   return res.status(401).json({ ok: false, error: 'invalid admin creds' });
+}
+
+// Supabase auth — Bearer token in Authorization header or token param (SSE)
+async function supaAuth(req, res, next) {
+  if (!supabase) return res.status(500).json({ ok: false, error: 'supabase not configured' });
+  let token = null;
+  const auth = req.headers['authorization'] || '';
+  if (auth.startsWith('Bearer ')) token = auth.slice(7);
+  if (!token && req.query && req.query.token) token = req.query.token;
+  if (!token) return res.status(401).json({ ok: false, error: 'auth token required' });
+  try {
+    const { data, error } = await supabase.auth.getUser(token);
+    if (error || !data?.user) return res.status(401).json({ ok: false, error: 'invalid token' });
+    req.user = data.user;
+    next();
+  } catch (e) {
+    return res.status(401).json({ ok: false, error: 'auth failed' });
+  }
 }
 
 // Tenant API key auth
@@ -155,15 +178,15 @@ app.post('/admin/login', (req, res) => {
   return res.status(401).json({ ok: false, error: 'invalid creds' });
 });
 
-app.get('/admin/sessions', adminAuth, async (req, res) => {
-  const rows = await DB.list();
+app.get('/admin/sessions', supaAuth, async (req, res) => {
+  const rows = await DB.listByUser(req.user.id);
   res.json({ ok: true, sessions: rows });
 });
 
-app.post('/admin/sessions', adminAuth, async (req, res) => {
+app.post('/admin/sessions', supaAuth, async (req, res) => {
   const { name } = req.body || {};
   const id = 'ws_' + Date.now().toString(36);
-  await createSession({ id, name: name || id });
+  await createSession({ id, name: name || id, userId: req.user.id });
   const api = randomKey();
   const secret = randomKey();
   await DB.setApiKey(id, api);
@@ -172,57 +195,66 @@ app.post('/admin/sessions', adminAuth, async (req, res) => {
 });
 
 // QR görüntüleme
-app.get('/admin/sessions/:id/qr', adminAuth, (req, res) => {
-  const e = clients.get(req.params.id);
+app.get('/admin/sessions/:id/qr', supaAuth, async (req, res) => {
+  const sid = req.params.id;
+  const s = await DB.getByIdAndUser(sid, req.user.id);
+  if (!s) return res.status(404).json({ ok: false, error: 'session not found' });
+  const e = clients.get(sid);
   if (!e) return res.status(404).json({ ok: false, error: 'session not running' });
   return res.json({ ok: true, qr: e.qr, ready: !!e.ready });
 });
 
 // Webhook ayarla
-app.post('/admin/sessions/:id/webhook', adminAuth, async (req, res) => {
+app.post('/admin/sessions/:id/webhook', supaAuth, async (req, res) => {
   const { url } = req.body || {};
   if (!url) return res.status(400).json({ ok: false, error: 'url required' });
-  const s = await DB.get(req.params.id);
+  const s = await DB.getByIdAndUser(req.params.id, req.user.id);
   if (!s) return res.status(404).json({ ok: false, error: 'session not found' });
   await DB.setWebhook(req.params.id, url, s.webhook_secret);
   res.json({ ok: true });
 });
 
 // Session sil
-app.delete('/admin/sessions/:id', adminAuth, async (req, res) => {
-  destroySessionSync(req.params.id);
-  await DB.del(req.params.id);
+app.delete('/admin/sessions/:id', supaAuth, async (req, res) => {
+  const sid = req.params.id;
+  const s = await DB.getByIdAndUser(sid, req.user.id);
+  if (!s) return res.status(404).json({ ok:false, error:'session not found' });
+  destroySessionSync(sid);
+  await DB.del(sid);
   res.json({ ok: true });
 });
 
 // === Admin teşhis/aksiyon (status & restart) ===
-app.get('/admin/sessions/:id/status', adminAuth, async (req, res) => {
+app.get('/admin/sessions/:id/status', supaAuth, async (req, res) => {
   const sid = req.params.id;
-  const s = await DB.get(sid);
+  const s = await DB.getByIdAndUser(sid, req.user.id);
+  if (!s) return res.status(404).json({ ok:false, error:'session not found' });
   const e = clients.get(sid);
   return res.json({ ok: true, inMemory: !!e, ready: !!e?.ready, db: s || null });
 });
 
-app.post('/admin/sessions/:id/restart', adminAuth, async (req, res) => {
+app.post('/admin/sessions/:id/restart', supaAuth, async (req, res) => {
   const sid = req.params.id;
-  const s = await DB.get(sid);
+  const s = await DB.getByIdAndUser(sid, req.user.id);
   if (!s) return res.status(404).json({ ok:false, error:'session not found in DB' });
   destroySessionSync(sid);
-  await createSession({ id: sid, name: s.name });
+  await createSession({ id: sid, name: s.name, userId: s.user_id });
   res.json({ ok:true });
 });
 
-// SSE — admin paneline canlı mesaj & durum yayını
-app.get('/admin/events', (req, res) => {
-  const token = req.query.token || '';
-  const [u, p] = Buffer.from(token || '', 'base64').toString('utf8').split(':');
-  if (u !== ADMIN_USER || p !== ADMIN_PASS) return res.status(401).end('unauthorized');
+// SSE — admin paneline canlı mesaj & durum yayını (Supabase auth via token query)
+app.get('/admin/events', supaAuth, (req, res) => {
+  const userId = req.user.id;
 
   res.writeHead(200, { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache', Connection: 'keep-alive' });
   const send = (type, data) => { res.write(`event: ${type}\n`); res.write(`data: ${JSON.stringify(data)}\n\n`); };
 
-  const onMsg = (payload) => send('message', payload);
-  const onStatus = (payload) => send('status', payload);
+  const onMsg = async (payload) => {
+    try { const s = await DB.getByIdAndUser(payload.sessionId, userId); if (s) send('message', payload); } catch {}
+  };
+  const onStatus = async (payload) => {
+    try { const s = await DB.getByIdAndUser(payload.sessionId, userId); if (s) send('status', payload); } catch {}
+  };
 
   events.on('message', onMsg);
   events.on('status', onStatus);

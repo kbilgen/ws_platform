@@ -43,6 +43,17 @@ pool.on('error', (err) => {
   // Pool error'ları genellikle idle connection'larda olur, crash'e sebep olmaz
 });
 
+// Basit migration: sessions tablosuna user_id alanı ekle (varsa atla)
+async function migrate() {
+  try {
+    await pool.query(`alter table if exists sessions add column if not exists user_id text`);
+    await pool.query(`create index if not exists idx_sessions_user on sessions(user_id)`);
+    console.log('DB migrate ok: user_id');
+  } catch (e) {
+    console.error('DB migrate error:', e.message);
+  }
+}
+
 // Connection test fonksiyonu
 async function testConnection() {
   let retries = 3;
@@ -68,9 +79,13 @@ async function testConnection() {
 }
 
 // Startup'ta connection test et (ama crash etme)
-testConnection().catch(err => {
-  console.error('Initial DB test failed:', err.message);
-});
+testConnection()
+  .then(() => migrate())
+  .catch(err => {
+    console.error('Initial DB test failed:', err.message);
+    // yine de migrate dene
+    migrate().catch(()=>{});
+  });
 
 // 3) CRUD metotları - her birinde error handling
 const DB = {
@@ -78,8 +93,8 @@ const DB = {
     try {
       await pool.query(
         `
-        insert into sessions (id, name, status, api_key, webhook_url, webhook_secret, created_at)
-        values ($1, $2, $3, $4, $5, $6, to_timestamp($7/1000.0))
+        insert into sessions (id, name, status, api_key, webhook_url, webhook_secret, user_id, created_at)
+        values ($1, $2, $3, $4, $5, $6, $7, to_timestamp($8/1000.0))
         on conflict (id) do update set
           name = excluded.name,
           status = excluded.status,
@@ -87,7 +102,7 @@ const DB = {
           webhook_url = coalesce(excluded.webhook_url, sessions.webhook_url),
           webhook_secret = coalesce(excluded.webhook_secret, sessions.webhook_secret)
         `,
-        [s.id, s.name, s.status, s.api_key, s.webhook_url, s.webhook_secret, s.created_at]
+        [s.id, s.name, s.status, s.api_key, s.webhook_url, s.webhook_secret, s.user_id || null, s.created_at]
       );
     } catch (error) {
       console.error('DB upsertSession error:', error.message);
@@ -141,6 +156,26 @@ const DB = {
       return r.rows;
     } catch (error) {
       console.error('DB list error:', error.message);
+      throw error;
+    }
+  },
+
+  async listByUser(userId) {
+    try {
+      const r = await pool.query(`select * from sessions where user_id = $1 order by created_at desc`, [userId]);
+      return r.rows;
+    } catch (error) {
+      console.error('DB listByUser error:', error.message);
+      throw error;
+    }
+  },
+
+  async getByIdAndUser(id, userId) {
+    try {
+      const r = await pool.query(`select * from sessions where id = $1 and user_id = $2`, [id, userId]);
+      return r.rows[0] || null;
+    } catch (error) {
+      console.error('DB getByIdAndUser error:', error.message);
       throw error;
     }
   },

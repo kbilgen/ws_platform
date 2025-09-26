@@ -152,10 +152,10 @@
     const $ = sel => document.querySelector(sel);
     const el = id => document.getElementById(id);
     const toast = (msg) => { const t=el('toast'); t.textContent=msg; t.classList.add('show'); setTimeout(()=>t.classList.remove('show'), 2000); };
-    const authToken = localStorage.getItem('adminAuth');
+    const authToken = localStorage.getItem('sb_token');
     if(!authToken){ location.href = '/login.html'; }
 
-    const AH = () => ({ 'Content-Type':'application/json', 'X-Admin-Auth': authToken });
+    const AH = () => ({ 'Content-Type':'application/json', 'Authorization': 'Bearer ' + authToken });
 
     const state = {
       sessions: [],
@@ -388,7 +388,7 @@
     el('sendTextBtn').onclick = sendText;
     el('sendMediaBtn').onclick = sendMedia;
     el('clearLiveBtn').onclick = ()=>{ el('live').innerHTML=''; };
-    el('logoutBtn').onclick = ()=>{ localStorage.removeItem('adminAuth'); location.href='/login.html'; };
+    el('logoutBtn').onclick = ()=>{ localStorage.removeItem('sb_token'); location.href='/login.html'; };
 
     // init
     startSSE();
