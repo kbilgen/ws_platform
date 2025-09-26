@@ -176,7 +176,10 @@
       <div id="sessionDetail" class="card span-12" style="display:none; margin-top:16px">
         <div class="row" style="justify-content:space-between; align-items:center">
           <h3>Selected Session</h3>
-          <div id="selStatus" class="pill">-</div>
+          <div class="row" style="gap:8px; align-items:center">
+            <div id="selStatus" class="pill">-</div>
+            <button id="deleteSession" class="btn" style="background: var(--bad)">Delete</button>
+          </div>
         </div>
         <div id="selInfo" class="muted">Select a session to see details and QR.</div>
         <div id="selBody" style="display:none; margin-top:10px">
@@ -371,6 +374,7 @@
   document.getElementById('search').oninput = renderSessions;
   document.getElementById('statusFilter').onchange = renderSessions;
   document.getElementById('showQRBtn').onclick = showQR;
+  document.getElementById('deleteSession').onclick = deleteSelected;
 
   async function createSession(){
     try{
@@ -384,6 +388,20 @@
         showQR();
       }
     }catch(e){ alert(e.message); }
+  }
+
+  async function deleteSelected(){
+    const s = state.selected; if(!s) return;
+    if(!confirm(`Delete session ${s.name||s.id}? This will disconnect WhatsApp and remove it permanently.`)) return;
+    try{
+      clearInterval(state.qrTimer);
+      const r = await fetch(`/admin/sessions/${encodeURIComponent(s.id)}`, { method:'DELETE', headers });
+      if(!r.ok){ const t=await r.text(); alert('Delete failed: '+t); return; }
+      state.selected = null;
+      document.getElementById('sessionDetail').style.display='none';
+      await loadSessions();
+      alert('Session deleted');
+    }catch(e){ alert('Delete error: '+ (e.message||e)); }
   }
 
   // Recent Activity + Message Activity via SSE
