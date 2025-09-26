@@ -10,7 +10,7 @@ const axios = require('axios');
 const qrcode = require('qrcode');
 const fs = require('fs');
 const { EventEmitter } = require('events');
-const { Client, LocalAuth, MessageMedia } = require('whatsapp-web.js');
+const { Client, LocalAuth, MessageMedia, Location, Poll } = require('whatsapp-web.js');
 
 const { DB } = require('./db'); // <<<< Supabase Postgres CRUD
 const { createClient } = require('@supabase/supabase-js');
@@ -302,6 +302,173 @@ app.post('/api/:sessionId/send-media', keyAuth, async (req, res) => {
   } catch (e) {
     res.status(500).json({ ok: false, error: e?.message || 'send-media fail' });
   }
+});
+
+// === Advanced messaging & management endpoints ===
+function toChatId(raw) { return (raw || '').includes('@') ? raw : `${raw}@c.us`; }
+function toGroupId(raw) { const s = (raw||'').trim(); return s.endsWith('@g.us') ? s : `${s}@g.us`; }
+
+// Send sticker from base64 (data URI supported)
+app.post('/api/:sessionId/send-sticker', keyAuth, async (req, res) => {
+  try {
+    const client = ensureClient(req.params.sessionId);
+    const { to, media, author, name } = req.body || {};
+    if (!to || !media?.base64) return res.status(400).json({ ok:false, error:'to & media.base64 required' });
+    let b64 = (media.base64||'').trim();
+    let mime = media.mime || 'image/webp';
+    const m = b64.match(/^data:(.+);base64,(.*)$/);
+    if (m) { mime = m[1]; b64 = m[2]; }
+    const mm = new MessageMedia(mime, b64, media.filename || 'sticker');
+    const sent = await client.sendMessage(toChatId(to), mm, { sendMediaAsSticker: true, stickerAuthor: author, stickerName: name });
+    return res.json({ ok:true, id: sent.id.id });
+  } catch (e) {
+    return res.status(500).json({ ok:false, error: e?.message || 'send-sticker fail' });
+  }
+});
+
+// Send location
+app.post('/api/:sessionId/send-location', keyAuth, async (req, res) => {
+  try {
+    const client = ensureClient(req.params.sessionId);
+    const { to, latitude, longitude, description } = req.body || {};
+    if (typeof latitude !== 'number' || typeof longitude !== 'number' || !to) {
+      return res.status(400).json({ ok:false, error:'to, latitude(number), longitude(number) required' });
+    }
+    const loc = new Location(latitude, longitude, description || undefined);
+    const sent = await client.sendMessage(toChatId(to), loc);
+    return res.json({ ok:true, id: sent.id.id });
+  } catch (e) {
+    return res.status(500).json({ ok:false, error: e?.message || 'send-location fail' });
+  }
+});
+
+// Send poll
+app.post('/api/:sessionId/send-poll', keyAuth, async (req, res) => {
+  try {
+    const client = ensureClient(req.params.sessionId);
+    const { to, name, options, allowMultipleAnswers } = req.body || {};
+    if (!to || !name || !Array.isArray(options) || options.length < 2) return res.status(400).json({ ok:false, error:'to, name, options[>=2] required' });
+    const poll = new Poll(name, options, { allowMultipleAnswers: !!allowMultipleAnswers });
+    const sent = await client.sendMessage(toChatId(to), poll);
+    return res.json({ ok:true, id: sent.id.id });
+  } catch (e) {
+    return res.status(500).json({ ok:false, error: e?.message || 'send-poll fail' });
+  }
+});
+
+// React to a message
+app.post('/api/:sessionId/react', keyAuth, async (req, res) => {
+  try {
+    const client = ensureClient(req.params.sessionId);
+    const { messageId, emoji } = req.body || {};
+    if (!messageId || !emoji) return res.status(400).json({ ok:false, error:'messageId & emoji required' });
+    const msg = await client.getMessageById(messageId);
+    if (!msg) return res.status(404).json({ ok:false, error:'message not found' });
+    await msg.react(emoji);
+    return res.json({ ok:true });
+  } catch (e) {
+    return res.status(500).json({ ok:false, error: e?.message || 'react fail' });
+  }
+});
+
+// Group management
+app.post('/api/:sessionId/group/create', keyAuth, async (req, res) => {
+  try {
+    const client = ensureClient(req.params.sessionId);
+    const { name, participants } = req.body || {};
+    if (!name) return res.status(400).json({ ok:false, error:'name required' });
+    const parts = (participants||[]).map(p => toChatId(p));
+    const r = await client.createGroup(name, parts);
+    return res.json({ ok:true, gid: r.gid? r.gid._serialized : r.gid, pendingInviteV4: r });
+  } catch (e) {
+    return res.status(500).json({ ok:false, error: e?.message || 'group create fail' });
+  }
+});
+
+async function getGroupChat(client, groupId) {
+  const gid = toGroupId(groupId);
+  const chat = await client.getChatById(gid);
+  if (!chat || chat.isGroup !== true) throw new Error('group not found');
+  return chat;
+}
+
+app.post('/api/:sessionId/group/add', keyAuth, async (req, res) => {
+  try {
+    const client = ensureClient(req.params.sessionId);
+    const { groupId, participants } = req.body || {};
+    if (!groupId || !Array.isArray(participants) || participants.length === 0) return res.status(400).json({ ok:false, error:'groupId & participants[] required' });
+    const chat = await getGroupChat(client, groupId);
+    await chat.addParticipants(participants.map(p=>toChatId(p)));
+    return res.json({ ok:true });
+  } catch (e) { return res.status(500).json({ ok:false, error: e?.message || 'group add fail' }); }
+});
+
+app.post('/api/:sessionId/group/remove', keyAuth, async (req, res) => {
+  try {
+    const client = ensureClient(req.params.sessionId);
+    const { groupId, participants } = req.body || {};
+    if (!groupId || !Array.isArray(participants) || participants.length === 0) return res.status(400).json({ ok:false, error:'groupId & participants[] required' });
+    const chat = await getGroupChat(client, groupId);
+    await chat.removeParticipants(participants.map(p=>toChatId(p)));
+    return res.json({ ok:true });
+  } catch (e) { return res.status(500).json({ ok:false, error: e?.message || 'group remove fail' }); }
+});
+
+app.post('/api/:sessionId/group/promote', keyAuth, async (req, res) => {
+  try {
+    const client = ensureClient(req.params.sessionId);
+    const { groupId, participants } = req.body || {};
+    if (!groupId || !Array.isArray(participants) || participants.length === 0) return res.status(400).json({ ok:false, error:'groupId & participants[] required' });
+    const chat = await getGroupChat(client, groupId);
+    await chat.promoteParticipants(participants.map(p=>toChatId(p)));
+    return res.json({ ok:true });
+  } catch (e) { return res.status(500).json({ ok:false, error: e?.message || 'group promote fail' }); }
+});
+
+app.post('/api/:sessionId/group/demote', keyAuth, async (req, res) => {
+  try {
+    const client = ensureClient(req.params.sessionId);
+    const { groupId, participants } = req.body || {};
+    if (!groupId || !Array.isArray(participants) || participants.length === 0) return res.status(400).json({ ok:false, error:'groupId & participants[] required' });
+    const chat = await getGroupChat(client, groupId);
+    await chat.demoteParticipants(participants.map(p=>toChatId(p)));
+    return res.json({ ok:true });
+  } catch (e) { return res.status(500).json({ ok:false, error: e?.message || 'group demote fail' }); }
+});
+
+app.get('/api/:sessionId/group/:groupId/invite', keyAuth, async (req, res) => {
+  try {
+    const client = ensureClient(req.params.sessionId);
+    const chat = await getGroupChat(client, req.params.groupId);
+    const code = await chat.getInviteCode();
+    return res.json({ ok:true, code, link: `https://chat.whatsapp.com/${code}` });
+  } catch (e) { return res.status(500).json({ ok:false, error: e?.message || 'get invite fail' }); }
+});
+
+app.post('/api/:sessionId/group/:groupId/revoke-invite', keyAuth, async (req, res) => {
+  try {
+    const client = ensureClient(req.params.sessionId);
+    const chat = await getGroupChat(client, req.params.groupId);
+    await chat.revokeInvite();
+    return res.json({ ok:true });
+  } catch (e) { return res.status(500).json({ ok:false, error: e?.message || 'revoke invite fail' }); }
+});
+
+// Chat & contact management
+app.post('/api/:sessionId/chat/mute', keyAuth, async (req, res) => {
+  try { const client = ensureClient(req.params.sessionId); const { chatId, durationMs } = req.body || {}; if (!chatId) return res.status(400).json({ ok:false, error:'chatId required' }); const chat = await client.getChatById(chatId.includes('@')?chatId:toChatId(chatId)); await chat.mute(durationMs || undefined); return res.json({ ok:true }); } catch (e) { return res.status(500).json({ ok:false, error: e?.message || 'mute fail' }); }
+});
+app.post('/api/:sessionId/chat/unmute', keyAuth, async (req, res) => {
+  try { const client = ensureClient(req.params.sessionId); const { chatId } = req.body || {}; if (!chatId) return res.status(400).json({ ok:false, error:'chatId required' }); const chat = await client.getChatById(chatId.includes('@')?chatId:toChatId(chatId)); await chat.unmute(); return res.json({ ok:true }); } catch (e) { return res.status(500).json({ ok:false, error: e?.message || 'unmute fail' }); }
+});
+app.post('/api/:sessionId/contact/block', keyAuth, async (req, res) => {
+  try { const client = ensureClient(req.params.sessionId); const { contactId } = req.body || {}; if (!contactId) return res.status(400).json({ ok:false, error:'contactId required' }); const id = contactId.includes('@')?contactId:toChatId(contactId); await client.blockContact(id); return res.json({ ok:true }); } catch (e) { return res.status(500).json({ ok:false, error: e?.message || 'block fail' }); }
+});
+app.post('/api/:sessionId/contact/unblock', keyAuth, async (req, res) => {
+  try { const client = ensureClient(req.params.sessionId); const { contactId } = req.body || {}; if (!contactId) return res.status(400).json({ ok:false, error:'contactId required' }); const id = contactId.includes('@')?contactId:toChatId(contactId); await client.unblockContact(id); return res.json({ ok:true }); } catch (e) { return res.status(500).json({ ok:false, error: e?.message || 'unblock fail' }); }
+});
+app.get('/api/:sessionId/contact/:id/profile', keyAuth, async (req, res) => {
+  try { const client = ensureClient(req.params.sessionId); const id = req.params.id.includes('@')? req.params.id : toChatId(req.params.id); const contact = await client.getContactById(id); const profilePicUrl = await contact.getProfilePicUrl().catch(()=>null); const about = await contact.getAbout?.().catch?.(()=>null) || null; return res.json({ ok:true, contact: { id: contact.id? contact.id._serialized : id, name: contact.name, pushname: contact.pushname, number: contact.number, isBusiness: contact.isBusiness, isEnterprise: contact.isEnterprise, profilePicUrl, about } }); } catch (e) { return res.status(500).json({ ok:false, error: e?.message || 'profile fetch fail' }); }
 });
 
 // ---- Unified Bearer token API (no sessionId in path) ----

@@ -136,6 +136,101 @@
         <label>Başlık (opsiyonel)</label><input id="caption" placeholder="Açıklama" />
         <button id="sendMediaBtn">Gönder</button>
         <div id="sendMediaResp" class="muted" style="margin-top:6px"></div>
+
+        <hr style="border:none;border-top:1px solid var(--line); margin:16px 0" />
+
+        <h4>Sticker Gönder</h4>
+        <label>Alıcı</label><input id="toSticker" placeholder="9053XXXXXXX" />
+        <label>Görsel (PNG/JPG/WebP)</label><input id="stickerFile" type="file" accept="image/*" />
+        <div class="row" style="gap:8px">
+          <input id="stickerAuthor" placeholder="Sticker Author (opsiyonel)" />
+          <input id="stickerName" placeholder="Sticker Name (opsiyonel)" />
+        </div>
+        <button id="sendStickerBtn">Sticker Gönder</button>
+        <div id="sendStickerResp" class="muted" style="margin-top:6px"></div>
+
+        <h4 style="margin-top:18px">Konum Gönder</h4>
+        <div class="row" style="gap:8px">
+          <input id="toLoc" placeholder="9053XXXXXXX" />
+          <input id="lat" placeholder="Enlem (lat)" />
+          <input id="lng" placeholder="Boylam (lng)" />
+        </div>
+        <input id="locDesc" placeholder="Açıklama (opsiyonel)" />
+        <button id="sendLocBtn">Konum Gönder</button>
+        <div id="sendLocResp" class="muted" style="margin-top:6px"></div>
+
+        <h4 style="margin-top:18px">Anket Oluştur</h4>
+        <label>Alıcı</label><input id="toPoll" placeholder="9053XXXXXXX veya chatId" />
+        <label>Soru</label><input id="pollQuestion" placeholder="Anket sorusu" />
+        <label>Seçenekler (virgül ile ayırın)</label><input id="pollOptions" placeholder="Evet, Hayır, Belki" />
+        <div class="row" style="gap:8px; align-items:center"><input id="pollMulti" type="checkbox" style="width:auto" /><label for="pollMulti" style="margin:0">Çoklu seçim</label></div>
+        <button id="sendPollBtn">Anket Gönder</button>
+        <div id="sendPollResp" class="muted" style="margin-top:6px"></div>
+
+        <h4 style="margin-top:18px">Mesaja Tepki Ver</h4>
+        <label>Mesaj ID</label><input id="reactMsgId" placeholder="message._serialized" />
+        <label>Emoji</label><input id="reactEmoji" placeholder="👍 😀 🔥" />
+        <button id="reactBtn">Tepki Gönder</button>
+        <div id="reactResp" class="muted" style="margin-top:6px"></div>
+      </div>
+
+      <!-- Grup Yönetimi -->
+      <div class="card span-6">
+        <h3>Grup Yönetimi</h3>
+        <h4>Grup Oluştur</h4>
+        <label>Grup Adı</label><input id="g_name" placeholder="Grup ismi" />
+        <label>Katılımcılar (virgül ile, 9053...)</label><input id="g_parts" placeholder="9053...,9053..." />
+        <button id="g_create">Grup Oluştur</button>
+        <div id="g_create_resp" class="muted" style="margin-top:6px"></div>
+
+        <h4 style="margin-top:16px">Üye İşlemleri</h4>
+        <label>Grup ID (@g.us olmadan da olur)</label><input id="g_id" placeholder="1203...@g.us" />
+        <label>Katılımcılar (virgül ile, 9053...)</label><input id="g_parts2" placeholder="9053...,9053..." />
+        <div class="row" style="gap:8px; margin-top:6px">
+          <button id="g_add" class="ghost">Ekle</button>
+          <button id="g_remove" class="ghost">Çıkar</button>
+          <button id="g_promote" class="ghost">Yetki Ver</button>
+          <button id="g_demote" class="ghost">Yetki Al</button>
+        </div>
+        <div id="g_members_resp" class="muted" style="margin-top:6px"></div>
+
+        <h4 style="margin-top:16px">Davet Linki</h4>
+        <div class="row" style="gap:8px">
+          <input id="g_id2" placeholder="1203...@g.us" />
+          <button id="g_invite" class="ghost">Link Al</button>
+          <button id="g_revoke" class="ghost">Link Yenile</button>
+        </div>
+        <div id="g_invite_resp" class="muted" style="margin-top:6px"></div>
+      </div>
+
+      <!-- Sohbet/Kişi Yönetimi -->
+      <div class="card span-6">
+        <h3>Kullanıcı / Sohbet Yönetimi</h3>
+        <h4>Sohbet Sessize Al / Kaldır</h4>
+        <div class="row" style="gap:8px">
+          <input id="chat_id" placeholder="chatId (9053...@c.us / ...@g.us)" />
+          <input id="mute_ms" placeholder="Süre ms (opsiyonel)" />
+        </div>
+        <div class="row" style="gap:8px; margin-top:6px">
+          <button id="chat_mute" class="ghost">Sessize Al</button>
+          <button id="chat_unmute" class="ghost">Sessiz Kaldır</button>
+        </div>
+        <div id="chat_resp" class="muted" style="margin-top:6px"></div>
+
+        <h4 style="margin-top:16px">Engelle / Engel Kaldır</h4>
+        <div class="row" style="gap:8px">
+          <input id="contact_id" placeholder="9053... veya 9053...@c.us" />
+          <button id="block_btn" class="ghost">Engelle</button>
+          <button id="unblock_btn" class="ghost">Engeli Kaldır</button>
+        </div>
+        <div id="block_resp" class="muted" style="margin-top:6px"></div>
+
+        <h4 style="margin-top:16px">Profil Bilgisi</h4>
+        <div class="row" style="gap:8px">
+          <input id="profile_id" placeholder="9053... veya chatId" />
+          <button id="profile_get" class="ghost">Getir</button>
+        </div>
+        <pre id="profile_resp" class="mono" style="white-space:pre-wrap; background:#f7f7f9; padding:10px; border-radius:8px; border:1px solid var(--line)"></pre>
       </div>
 
       <!-- Canlı Akış -->
@@ -361,6 +456,79 @@
       if(r.ok) toast('Medya gönderildi'); else toast('Medya gönderim hatası');
     }
 
+    // --- send sticker ---
+    async function sendSticker(){
+      if(!state.selected) return toast('Oturum seçin');
+      const s = state.selected;
+      const to = el('toSticker').value.trim();
+      const file = el('stickerFile').files[0];
+      const author = el('stickerAuthor').value.trim();
+      const name = el('stickerName').value.trim();
+      if(!to || !file) return toast('Alıcı ve görsel gerekli');
+      const b64 = await new Promise((res, rej)=>{ const reader = new FileReader(); reader.onload=()=>res(reader.result); reader.onerror=rej; reader.readAsDataURL(file); });
+      const r = await fetch(`/api/${s.id}/send-sticker`, { method:'POST', headers:{'Content-Type':'application/json','X-API-Key': s.api_key||''}, body: JSON.stringify({ to, media:{ base64:b64, filename:file.name }, author, name }) });
+      const t = await r.text();
+      el('sendStickerResp').textContent = t;
+      if(r.ok) toast('Sticker gönderildi'); else toast('Sticker gönderim hatası');
+    }
+
+    // --- send location ---
+    async function sendLocation(){
+      if(!state.selected) return toast('Oturum seçin');
+      const s = state.selected;
+      const to = el('toLoc').value.trim();
+      const lat = parseFloat(el('lat').value);
+      const lng = parseFloat(el('lng').value);
+      const description = el('locDesc').value;
+      if(!to || Number.isNaN(lat) || Number.isNaN(lng)) return toast('Alıcı ve koordinatlar gerekli');
+      const r = await fetch(`/api/${s.id}/send-location`, { method:'POST', headers:{'Content-Type':'application/json','X-API-Key': s.api_key||''}, body: JSON.stringify({ to, latitude: lat, longitude: lng, description }) });
+      const t = await r.text();
+      el('sendLocResp').textContent = t;
+      if(r.ok) toast('Konum gönderildi'); else toast('Konum gönderim hatası');
+    }
+
+    // --- send poll ---
+    async function sendPoll(){
+      if(!state.selected) return toast('Oturum seçin');
+      const s = state.selected;
+      const to = el('toPoll').value.trim();
+      const name = el('pollQuestion').value.trim();
+      const options = el('pollOptions').value.split(',').map(x=>x.trim()).filter(Boolean);
+      const allowMultipleAnswers = el('pollMulti').checked;
+      if(!to || !name || options.length<2) return toast('Alıcı, soru ve en az 2 seçenek gerekli');
+      const r = await fetch(`/api/${s.id}/send-poll`, { method:'POST', headers:{'Content-Type':'application/json','X-API-Key': s.api_key||''}, body: JSON.stringify({ to, name, options, allowMultipleAnswers }) });
+      const t = await r.text();
+      el('sendPollResp').textContent = t;
+      if(r.ok) toast('Anket gönderildi'); else toast('Anket gönderim hatası');
+    }
+
+    // --- react ---
+    async function sendReaction(){
+      if(!state.selected) return toast('Oturum seçin');
+      const s = state.selected;
+      const messageId = el('reactMsgId').value.trim();
+      const emoji = el('reactEmoji').value.trim();
+      if(!messageId || !emoji) return toast('Mesaj ID ve emoji gerekli');
+      const r = await fetch(`/api/${s.id}/react`, { method:'POST', headers:{'Content-Type':'application/json','X-API-Key': s.api_key||''}, body: JSON.stringify({ messageId, emoji }) });
+      const t = await r.text();
+      el('reactResp').textContent = t;
+      if(r.ok) toast('Tepki gönderildi'); else toast('Tepki gönderim hatası');
+    }
+
+    // --- group helpers ---
+    function splitPhones(v){ return v.split(',').map(x=>x.trim()).filter(Boolean); }
+    async function grpCreate(){ if(!state.selected) return toast('Oturum seçin'); const s=state.selected; const name=el('g_name').value.trim(); const parts=splitPhones(el('g_parts').value); const r=await fetch(`/api/${s.id}/group/create`, { method:'POST', headers:{'Content-Type':'application/json','X-API-Key': s.api_key||''}, body: JSON.stringify({ name, participants: parts })}); const t=await r.text(); el('g_create_resp').textContent=t; if(r.ok) toast('Grup oluşturuldu'); }
+    async function grpMembers(action){ if(!state.selected) return toast('Oturum seçin'); const s=state.selected; const groupId=el('g_id').value.trim(); const parts=splitPhones(el('g_parts2').value); if(!groupId||parts.length===0) return toast('Grup ID ve katılımcılar gerekli'); const r=await fetch(`/api/${s.id}/group/${action}`, { method:'POST', headers:{'Content-Type':'application/json','X-API-Key': s.api_key||''}, body: JSON.stringify({ groupId, participants: parts })}); const t=await r.text(); el('g_members_resp').textContent=t; if(r.ok) toast(action+' başarılı'); }
+    async function grpInvite(){ if(!state.selected) return toast('Oturum seçin'); const s=state.selected; const gid=el('g_id2').value.trim(); if(!gid) return toast('Grup ID gerekli'); const r=await fetch(`/api/${s.id}/group/${encodeURIComponent(gid)}/invite`, { headers:{'X-API-Key': s.api_key||''} }); const t=await r.text(); el('g_invite_resp').textContent=t; if(r.ok) toast('Davet linki alındı'); }
+    async function grpRevoke(){ if(!state.selected) return toast('Oturum seçin'); const s=state.selected; const gid=el('g_id2').value.trim(); if(!gid) return toast('Grup ID gerekli'); const r=await fetch(`/api/${s.id}/group/${encodeURIComponent(gid)}/revoke-invite`, { method:'POST', headers:{'X-API-Key': s.api_key||''} }); const t=await r.text(); el('g_invite_resp').textContent=t; if(r.ok) toast('Davet linki yenilendi'); }
+
+    // --- chat/contact mgmt ---
+    async function chatMute(){ if(!state.selected) return toast('Oturum seçin'); const s=state.selected; const chatId=el('chat_id').value.trim(); const durationMs= parseInt(el('mute_ms').value||''); const r=await fetch(`/api/${s.id}/chat/mute`, { method:'POST', headers:{'Content-Type':'application/json','X-API-Key': s.api_key||''}, body: JSON.stringify({ chatId, durationMs: isNaN(durationMs)? undefined : durationMs }) }); const t=await r.text(); el('chat_resp').textContent=t; if(r.ok) toast('Sessize alındı'); }
+    async function chatUnmute(){ if(!state.selected) return toast('Oturum seçin'); const s=state.selected; const chatId=el('chat_id').value.trim(); const r=await fetch(`/api/${s.id}/chat/unmute`, { method:'POST', headers:{'Content-Type':'application/json','X-API-Key': s.api_key||''}, body: JSON.stringify({ chatId }) }); const t=await r.text(); el('chat_resp').textContent=t; if(r.ok) toast('Sessiz kaldırıldı'); }
+    async function block(){ if(!state.selected) return toast('Oturum seçin'); const s=state.selected; const contactId=el('contact_id').value.trim(); const r=await fetch(`/api/${s.id}/contact/block`, { method:'POST', headers:{'Content-Type':'application/json','X-API-Key': s.api_key||''}, body: JSON.stringify({ contactId }) }); const t=await r.text(); el('block_resp').textContent=t; if(r.ok) toast('Engellendi'); }
+    async function unblock(){ if(!state.selected) return toast('Oturum seçin'); const s=state.selected; const contactId=el('contact_id').value.trim(); const r=await fetch(`/api/${s.id}/contact/unblock`, { method:'POST', headers:{'Content-Type':'application/json','X-API-Key': s.api_key||''}, body: JSON.stringify({ contactId }) }); const t=await r.text(); el('block_resp').textContent=t; if(r.ok) toast('Engel kaldırıldı'); }
+    async function profileGet(){ if(!state.selected) return toast('Oturum seçin'); const s=state.selected; const id=el('profile_id').value.trim(); const r=await fetch(`/api/${s.id}/contact/${encodeURIComponent(id)}/profile`, { headers:{'X-API-Key': s.api_key||''} }); const j=await r.json(); el('profile_resp').textContent = JSON.stringify(j, null, 2); if(r.ok) toast('Profil alındı'); }
+
     // --- SSE live feed ---
     function startSSE(){
       try{
@@ -408,6 +576,23 @@
     el('pingWebhookBtn').onclick = pingWebhook;
     el('sendTextBtn').onclick = sendText;
     el('sendMediaBtn').onclick = sendMedia;
+    // new handlers
+    el('sendStickerBtn').onclick = sendSticker;
+    el('sendLocBtn').onclick = sendLocation;
+    el('sendPollBtn').onclick = sendPoll;
+    el('reactBtn').onclick = sendReaction;
+    el('g_create').onclick = grpCreate;
+    el('g_add').onclick = ()=>grpMembers('add');
+    el('g_remove').onclick = ()=>grpMembers('remove');
+    el('g_promote').onclick = ()=>grpMembers('promote');
+    el('g_demote').onclick = ()=>grpMembers('demote');
+    el('g_invite').onclick = grpInvite;
+    el('g_revoke').onclick = grpRevoke;
+    el('chat_mute').onclick = chatMute;
+    el('chat_unmute').onclick = chatUnmute;
+    el('block_btn').onclick = block;
+    el('unblock_btn').onclick = unblock;
+    el('profile_get').onclick = profileGet;
     el('clearLiveBtn').onclick = ()=>{ el('live').innerHTML=''; };
     el('logoutBtn').onclick = ()=>{ localStorage.removeItem('sb_token'); location.href='/login.html'; };
 
