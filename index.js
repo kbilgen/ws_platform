@@ -205,33 +205,44 @@ async function supaAuth(req, res, next) {
 // - Query: ?api_key=...
 async function keyAuth(req, res, next) {
   try {
-    const sid = req.params.sessionId || req.query.sessionId || req.body?.sessionId;
-    // prefer explicit header first
-    let key = req.headers['x-api-key'];
+    const sid = (req.params.sessionId || req.query.sessionId || req.body?.sessionId || '').toString().trim();
+
+    // Try multiple header variants (some proxies/clients alter names)
+    const h = req.headers || {};
+    let key = h['x-api-key'] || h['x-apikey'] || h['api-key'] || h['apikey'] || '';
+    if (Array.isArray(key)) key = key[0];
+    key = (key || '').toString().trim();
+
+    // Authorization: Bearer <key>
     if (!key) {
-      const auth = req.headers['authorization'] || '';
+      const auth = (h['authorization'] || '').toString();
       if (auth.startsWith('Bearer ')) key = auth.slice(7).trim();
     }
-    if (!key) key = req.body?.api_key || req.query?.api_key;
+
+    // Fallbacks: body or query
+    if (!key) key = (req.body?.api_key || req.query?.api_key || req.query?.key || req.query?.apikey || '').toString().trim();
 
     if (!sid || !key) {
+      const base = `${req.protocol}://${req.get('host')}`;
       return res.status(401).json({
         ok: false,
         error: 'sessionId & API key required',
         howTo: {
-          header: 'X-API-Key: <api_key>',
-          bearer: 'Authorization: Bearer <api_key>',
-          example_header: `curl -X POST ${req.protocol}://${req.get('host')}/api/<sessionId>/send-text -H 'Content-Type: application/json' -H 'X-API-Key: <api_key>' -d '{"to":"+9053...","text":"Hello"}'`,
-          example_bearer: `curl -X POST ${req.protocol}://${req.get('host')}/api/<sessionId>/send-text -H 'Authorization: Bearer <api_key>' -H 'Content-Type: application/json' -d '{"to":"+9053...","text":"Hello"}'`,
-          example_query: `curl -X POST '${req.protocol}://${req.get('host')}/api/<sessionId>/send-text?api_key=<api_key>' -H 'Content-Type: application/json' -d '{"to":"+9053...","text":"Hello"}'`
+          header: 'Use header: X-API-Key: <api_key>',
+          bearer: 'Or: Authorization: Bearer <api_key>',
+          query: 'Or: ?api_key=<api_key>',
+          example_header: `curl -X POST ${base}/api/<sessionId>/send-text -H "Content-Type: application/json" -H "X-API-Key: <api_key>" -d '{"to":"+9053...","text":"Hello"}'`,
+          example_bearer: `curl -X POST ${base}/api/<sessionId>/send-text -H "Authorization: Bearer <api_key>" -H "Content-Type: application/json" -d '{"to":"+9053...","text":"Hello"}'`,
+          example_query: `curl -X POST ${base}/api/<sessionId>/send-text?api_key=<api_key> -H "Content-Type: application/json" -d '{"to":"+9053...","text":"Hello"}'`,
+          tip: `Alternatively, use unified endpoint (no sessionId): curl -X POST ${base}/api/send-message -H "Authorization: Bearer <api_key>" -H "Content-Type: application/json" -d '{"to":"+9053...","text":"Hello"}'`
         }
       });
     }
 
     const s = await DB.get(sid);
-    if (!s || s.api_key !== key) return res.status(403).json({ ok: false, error: 'invalid api key' });
+    if (!s) return res.status(404).json({ ok: false, error: 'session not found' });
+    if ((s.api_key || '').trim() !== key) return res.status(403).json({ ok: false, error: 'invalid api key' });
 
-    // attach for downstream if needed
     req.session = s;
     next();
   } catch (e) {
