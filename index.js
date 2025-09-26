@@ -122,7 +122,7 @@ function ensureClient(id) {
 
 async function sendText(sessionId, to, text) {
   const client = ensureClient(sessionId);
-  const chatId = to.includes('@') ? to : `${to}@c.us`;
+  const chatId = toChatId(to);
   return client.sendMessage(chatId, text);
 }
 
@@ -132,7 +132,7 @@ async function sendMedia(sessionId, { to, caption, base64, filename, mime }) {
   const m = b64.match(/^data:(.+);base64,(.*)$/);
   if (m) { mime = m[1]; b64 = m[2]; }
   const mm = new MessageMedia(mime || 'application/octet-stream', b64, filename || 'file');
-  const chatId = to.includes('@') ? to : `${to}@c.us`;
+  const chatId = toChatId(to);
   return client.sendMessage(chatId, mm, { caption });
 }
 
@@ -197,14 +197,44 @@ async function supaAuth(req, res, next) {
   }
 }
 
-// Tenant API key auth
+// Tenant API key auth (more flexible)
+// Accept API key from multiple locations to avoid client pitfalls:
+// - Header: X-API-Key: <key>
+// - Header: Authorization: Bearer <key>
+// - Body: { api_key: "..." }
+// - Query: ?api_key=...
 async function keyAuth(req, res, next) {
-  const key = req.headers['x-api-key'];
-  const sid = req.params.sessionId || req.query.sessionId || req.body.sessionId;
-  if (!sid || !key) return res.status(401).json({ ok: false, error: 'sessionId & X-API-Key required' });
-  const s = await DB.get(sid);
-  if (!s || s.api_key !== key) return res.status(403).json({ ok: false, error: 'invalid api key' });
-  next();
+  try {
+    const sid = req.params.sessionId || req.query.sessionId || req.body?.sessionId;
+    // prefer explicit header first
+    let key = req.headers['x-api-key'];
+    if (!key) {
+      const auth = req.headers['authorization'] || '';
+      if (auth.startsWith('Bearer ')) key = auth.slice(7).trim();
+    }
+    if (!key) key = req.body?.api_key || req.query?.api_key;
+
+    if (!sid || !key) {
+      return res.status(401).json({
+        ok: false,
+        error: 'sessionId & API key required',
+        howTo: {
+          header: 'X-API-Key: <api_key>',
+          bearer: 'Authorization: Bearer <api_key>',
+          example: `curl -X POST "${req.protocol}://${req.get('host')}/api/<sessionId>/send-text" -H "Content-Type: application/json" -H "X-API-Key: <api_key>" -d '{"to":"+9053...","text":"Hello"}'`
+        }
+      });
+    }
+
+    const s = await DB.get(sid);
+    if (!s || s.api_key !== key) return res.status(403).json({ ok: false, error: 'invalid api key' });
+
+    // attach for downstream if needed
+    req.session = s;
+    next();
+  } catch (e) {
+    return res.status(500).json({ ok: false, error: e?.message || 'auth error' });
+  }
 }
 
 // ---- Admin endpoints ----
@@ -321,7 +351,16 @@ app.post('/api/:sessionId/send-media', keyAuth, async (req, res) => {
 });
 
 // === Advanced messaging & management endpoints ===
-function toChatId(raw) { return (raw || '').includes('@') ? raw : `${raw}@c.us`; }
+function toChatId(raw) {
+  const v = (raw || '').trim();
+  if (v.includes('@')) return v; // already a chatId
+  // Normalize phone numbers like "+9053..." or with spaces/dashes
+  let s = v.replace(/\s+/g, '');
+  if (s.startsWith('+')) s = s.slice(1);
+  // remove any remaining non-digits (e.g., dashes, parentheses)
+  s = s.replace(/\D/g, '');
+  return `${s}@c.us`;
+}
 function toGroupId(raw) { const s = (raw||'').trim(); return s.endsWith('@g.us') ? s : `${s}@g.us`; }
 
 // Send sticker from base64 (data URI supported)

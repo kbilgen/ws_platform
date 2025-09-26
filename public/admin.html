@@ -565,7 +565,7 @@
       const sel = btn.getAttribute('data-copy');
       const text = $(sel)?.textContent || '';
       if(!text) return;
-      navigator.clipboard.writeText(text).then(()=>toast('Kopyalandı'));
+      if (navigator.clipboard && navigator.clipboard.writeText) { navigator.clipboard.writeText(text).then(()=>toast('Kopyalandı')).catch(()=>{ fallbackCopy(text); toast('Kopyalandı'); }); } else { fallbackCopy(text); toast('Kopyalandı'); }
     });
 
     // --- events ---
@@ -599,6 +599,11 @@
     // init
     startSSE();
     loadSessions();
+  </script>
+  <script>
+    function fallbackCopy(text){
+      try{ const ta=document.createElement('textarea'); ta.value=text; ta.style.position='fixed'; ta.style.opacity='0'; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); document.body.removeChild(ta); }catch{}
+    }
   </script>
 </body>
 </html>
