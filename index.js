@@ -665,20 +665,27 @@ app.post('/test/webhook', async (req, res) => {
 
 app.get('/health', async (req, res) => {
   try {
-    const rows = await DB.list();
-    let q = null;
-    try {
-      const waiting = await webhookQueue.getWaitingCount();
-      const active = await webhookQueue.getActiveCount();
-      const delayed = await webhookQueue.getDelayedCount();
-      const failed = await webhookQueue.getFailedCount();
-      q = { waiting, active, delayed, failed };
-    } catch (_) {
-      q = null;
-    }
-    res.json({ ok: true, sessions: rows.length, live: clients.size, queue: q });
-  } catch (e) {
-    res.status(500).json({ ok: false, error: e?.message || 'health error' });
+    const { data: sessions, error } = await supabase
+      .from('sessions')
+      .select('*')
+      .eq('status', 'ready'); // sadece ready olanları al
+
+    if (error) throw error;
+
+    res.json({
+      ok: true,
+      sessions: sessions.length, // sadece ready sayısı
+      live: Array.from(clients.values()).filter(c => c && (c.ready || c.info)).length, // aktif client sayısı
+      queue: {
+        waiting: await webhookQueue.getWaitingCount(),
+        active: await webhookQueue.getActiveCount(),
+        delayed: await webhookQueue.getDelayedCount(),
+        failed: await webhookQueue.getFailedCount(),
+      },
+    });
+  } catch (err) {
+    console.error('Health check failed:', err.message);
+    res.status(500).json({ ok: false, error: err.message });
   }
 });
 app.get('/', (req, res) => {
