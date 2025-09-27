@@ -1,4 +1,3 @@
-// worker.js
 require('dotenv').config();
 const axios = require('axios');
 const crypto = require('crypto');
@@ -14,8 +13,22 @@ function hmac(secret, body) {
 }
 
 async function getSession(sessionId) {
-  const { data, error } = await supabase.from('sessions').select('*').eq('id', sessionId).single();
-  if (error) throw error;
+  const { data, error } = await supabase
+    .from('sessions')
+    .select('*')
+    .eq('id', sessionId)
+    .maybeSingle(); // ✅ single yerine maybeSingle
+
+  if (error) {
+    console.error(`[getSession] error for ${sessionId}:`, error.message);
+    return null;
+  }
+
+  if (!data) {
+    console.warn(`[getSession] no session found for id: ${sessionId}`);
+    return null;
+  }
+
   return data;
 }
 
@@ -30,13 +43,18 @@ makeWorker(
     const body = JSON.stringify(payload);
     const sig = hmac(session.webhook_secret, body);
 
-    await axios.post(session.webhook_url, payload, {
-      timeout: parseInt(process.env.WEBHOOK_TIMEOUT_MS || '10000', 10),
-      headers: {
-        'Content-Type': 'application/json',
-        ...(sig ? { 'X-Signature': sig } : {}),
-      },
-    });
+    try {
+      await axios.post(session.webhook_url, payload, {
+        timeout: parseInt(process.env.WEBHOOK_TIMEOUT_MS || '10000', 10),
+        headers: {
+          'Content-Type': 'application/json',
+          ...(sig ? { 'X-Signature': sig } : {}),
+        },
+      });
+    } catch (err) {
+      console.error(`[webhook][post-fail] ${job.id}:`, err.message);
+      throw err;
+    }
   },
   { concurrency: parseInt(process.env.WEBHOOK_CONCURRENCY || '5', 10) }
 );
