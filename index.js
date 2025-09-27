@@ -816,4 +816,36 @@ async function processRemindersBatch(){
 }
 setInterval(processRemindersBatch, 30 * 1000);
 
+// Dedicated queue health endpoint
+app.get('/health/queue', async (_req, res) => {
+  try {
+    const waiting = await webhookQueue.getWaitingCount();
+    const active = await webhookQueue.getActiveCount();
+    const delayed = await webhookQueue.getDelayedCount();
+    const failed = await webhookQueue.getFailedCount();
+    const completed = await webhookQueue.getCompletedCount();
+    let paused = 0;
+    try {
+      if (typeof webhookQueue.getPausedCount === 'function') {
+        paused = await webhookQueue.getPausedCount();
+      } else {
+        const counts = await webhookQueue.getJobCounts('paused');
+        paused = counts?.paused || 0;
+      }
+    } catch (_) {
+      try {
+        const counts = await webhookQueue.getJobCounts('paused');
+        paused = counts?.paused || 0;
+      } catch {}
+    }
+    res.json({
+      ok: true,
+      queue: process.env.WEBHOOK_QUEUE_NAME || 'webhooks',
+      waiting, active, delayed, failed, completed, paused
+    });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: e.message });
+  }
+});
+
 app.listen(PORT, () => console.log('HTTP listening on :' + PORT));
