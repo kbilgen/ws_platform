@@ -9,7 +9,9 @@
     "start:api": "node index.js",
     "dev": "npx nodemon index.js",
     "start:worker": "node worker.js",
-    "start:session": "node session.js"
+    "start:session": "node session.js",
+    "start:test-redis": "node test-redis.js"
+
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.4",
