@@ -1,0 +1,6 @@
+body { font-family: system-ui, sans-serif; margin: 40px; }
+input, button { padding: 10px; border: 1px solid #ccc; border-radius: 8px; width: 100%; margin-bottom: 12px; }
+button { background: #111; color: #fff; cursor: pointer; }
+.row{display:flex; gap:8px}
+.card { max-width: 380px; margin: auto; border: 1px solid #eee; border-radius: 12px; padding: 24px; }
+.muted{color:#666; font-size:12px}

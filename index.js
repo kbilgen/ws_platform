@@ -159,6 +159,11 @@ app.get('/app', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'app.html'));
 });
 
+// New modernized app shell (externalized assets)
+app.get('/app2', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'app2.html'));
+});
+
 // Current user info (server-validated) for dynamic app page
 app.get('/api/me', supaAuth, async (req, res) => {
   try {

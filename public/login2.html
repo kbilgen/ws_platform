@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8" />
+  <title>Giriş — Supabase (v2)</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+  <script src="/config.js"></script>
+  <link rel="stylesheet" href="/assets/login.css" />
+</head>
+<body>
+  <div class="card">
+    <h2>Giriş</h2>
+    <input id="email" type="email" placeholder="E-posta" />
+    <input id="password" type="password" placeholder="Şifre" />
+    <div id="captchaBox" style="margin:10px 0"></div>
+    <div class="row">
+      <button onclick="signIn()">Giriş</button>
+      <button onclick="signUp()" style="background:#555">Kayıt Ol</button>
+    </div>
+
+    <div style="display:flex; align-items:center; gap:8px; margin:12px 0">
+      <div style="height:1px; background:#eee; flex:1"></div>
+      <div class="muted">veya</div>
+      <div style="height:1px; background:#eee; flex:1"></div>
+    </div>
+    <div class="row" style="gap:8px">
+      <button style="background:#fff;color:#111;border:1px solid #ddd; display:flex; align-items:center; gap:8px; justify-content:center" onclick="oauth('google')">
+        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 48 48"><path fill="#FFC107" d="M43.611,20.083H42V20H24v8h11.303c-1.649,4.657-6.08,8-11.303,8c-6.627,0-12-5.373-12-12 s5.373-12,12-12c3.059,0,5.842,1.153,7.961,3.039l5.657-5.657C34.046,6.053,29.268,4,24,4C12.955,4,4,12.955,4,24 s8.955,20,20,20s20-8.955,20-20C44,22.659,43.862,21.35,43.611,20.083z"/><path fill="#FF3D00" d="M6.306,14.691l6.571,4.819C14.655,16.108,18.961,13,24,13c3.059,0,5.842,1.153,7.961,3.039 l5.657-5.657C34.046,6.053,29.268,4,24,4C16.318,4,9.656,8.337,6.306,14.691z"/><path fill="#4CAF50" d="M24,44c5.166,0,9.86-1.977,13.409-5.192l-6.19-5.238C29.211,35.091,26.715,36,24,36 c-5.196,0-9.6-3.317-11.262-7.946l-6.524,5.024C9.5,39.556,16.227,44,24,44z"/><path fill="#1976D2" d="M43.611,20.083H42V20H24v8h11.303c-0.793,2.237-2.231,4.166-4.093,5.571 c0.001-0.001,0.002-0.001,0.003-0.002l6.19,5.238C36.971,39.205,44,34,44,24C44,22.659,43.862,21.35,43.611,20.083z"/></svg>
+        Google ile devam et
+      </button>
+      <button style="background:#fff;color:#111;border:1px solid #ddd; display:flex; align-items:center; gap:8px; justify-content:center" onclick="oauth('github')">
+        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M12 .5C5.73.5.98 5.26.98 11.54c0 4.86 3.15 8.98 7.51 10.43.55.1.75-.24.75-.54 0-.27-.01-1.17-.02-2.12-3.05.66-3.7-1.29-3.7-1.29-.5-1.28-1.22-1.63-1.22-1.63-.99-.68.08-.67.08-.67 1.1.08 1.68 1.13 1.68 1.13.98 1.67 2.56 1.19 3.19.91.1-.71.38-1.19.69-1.46-2.43-.28-4.99-1.22-4.99-5.44 0-1.2.43-2.18 1.13-2.95-.11-.28-.49-1.43.11-2.99 0 0 .92-.3 3.01 1.13.87-.24 1.81-.36 2.75-.36.94 0 1.88.12 2.75.36 2.09-1.43 3.01-1.13 3.01-1.13.6 1.56.22 2.71.11 2.99.7.77 1.13 1.75 1.13 2.95 0 4.23-2.57 5.16-5.01 5.43.39.34.73 1.02.73 2.06 0 1.49-.01 2.69-.01 3.06 0 .3.2.65.76.54 4.35-1.46 7.5-5.58 7.5-10.43C23.02 5.26 18.27.5 12 .5z"/></svg>
+        GitHub ile devam et
+      </button>
+    </div>
+
+    <div id="msg" class="muted"></div>
+  </div>
+
+  <script defer src="/assets/login.js"></script>
+</body>
+</html>

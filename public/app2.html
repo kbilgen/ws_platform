@@ -1,0 +1,351 @@
+<!doctype html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8" />
+  <title>Whatsapp-Portal — Panel (v2)</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+  <script src="/config.js"></script>
+  <link rel="stylesheet" href="/assets/app.css" />
+</head>
+<body>
+<div class="layout">
+  <aside>
+    <div class="brand">Platform API</div>
+    <div class="menu">
+      <div class="muted">Platform</div>
+      <button id="m_dashboard" class="active">Dashboard</button>
+      <button id="m_sessions">Sessions</button>
+      <button id="m_reminders">Reminders</button>
+      <button id="m_subscription">Subscription</button>
+    </div>
+    <div class="footer">
+      <div>Documentation</div>
+      <div>Need Help?</div>
+      <div>Contact Us</div>
+    </div>
+  </aside>
+  <main>
+    <header>
+      <div class="row">
+        <div id="crumb">Dashboard</div>
+      </div>
+      <div class="row">
+        <div id="userPill" class="pill">Loading…</div>
+        <button id="logout" class="btn">Logout</button>
+      </div>
+    </header>
+
+    <div id="view_dashboard" class="container">
+      <div class="grid">
+        <div class="card span-4">
+          <h3>Subscription</h3>
+          <div class="row" style="justify-content:space-between; margin-bottom:8px">
+            <div class="muted">WhatsApp Sessions</div>
+            <div id="planBadge" class="pill ok">Basic</div>
+          </div>
+          <div class="progress"><i id="planProgress" style="width:0%"></i></div>
+          <div class="row" style="margin-top:8px; justify-content:space-between">
+            <div id="planUsage" class="muted">0 / 1</div>
+            <div class="muted" id="planPct">0% used</div>
+          </div>
+          <div class="row" style="margin-top:14px">
+            <button class="btn">Manage Subscription</button>
+          </div>
+        </div>
+        <div class="card span-4">
+          <h3>WhatsApp Sessions</h3>
+          <div id="dashSessionsEmpty" class="center">No active whatsapp session</div>
+          <div class="row" style="justify-content:center">
+            <button id="dashCreate" class="btn">Create WhatsApp Session</button>
+          </div>
+        </div>
+        <div class="card span-4">
+          <h3>Recent Activity</h3>
+          <div id="recent" class="center">No recent activity</div>
+        </div>
+
+        <div class="card span-8">
+          <h3>Message Activity</h3>
+          <div id="msgActivity" class="empty">
+            <div>No message data available</div>
+            <div class="muted"><span id="msgCount">0</span> messages</div>
+          </div>
+        </div>
+        <div class="card span-4">
+          <div class="row" style="align-items:center; gap:8px">
+            <h3 style="margin:0">Last 5 Failed Messages</h3>
+            <span class="pill warn">beta</span>
+          </div>
+          <div class="empty">No failed messages recently.</div>
+        </div>
+      </div>
+    </div>
+
+    <div id="view_sessions" class="container" style="display:none">
+      <div class="card span-12" style="margin-bottom:16px">
+        <div class="row" style="justify-content:space-between">
+          <div>
+            <div class="muted">Current Plan: <b>Basic</b></div>
+            <div class="progress" style="margin-top:8px; width:420px; max-width:100%"><i id="planProgress2" style="width:0%"></i></div>
+            <div class="muted" id="planUsage2" style="margin-top:4px">0 of 1 WhatsApp sessions used</div>
+          </div>
+          <div class="toolbar">
+            <button id="helpCenter" class="btn">Help Center</button>
+            <button id="refreshSessions" class="btn">Refresh</button>
+            <button id="newSession" class="btn primary">New Session</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="card span-12">
+        <div class="row" style="gap:8px; margin-bottom:10px">
+          <input id="search" placeholder="Search sessions..." style="flex:1" />
+          <select id="statusFilter">
+            <option value="">All Statuses</option>
+            <option value="ready">ready</option>
+            <option value="pending">pending</option>
+            <option value="disconnected">disconnected</option>
+          </select>
+        </div>
+        <div id="sessionList" class="list"></div>
+        <div id="emptySessions" class="empty" style="display:none">
+          <div>No WhatsApp Sessions</div>
+          <div class="muted">You haven't created any WhatsApp sessions yet. Create your first session to get started.</div>
+          <button id="createSessionEmpty" class="btn" style="margin-top:10px">Create Session</button>
+        </div>
+      </div>
+
+      <!-- Session Detail + QR -->
+      <div id="sessionDetail" class="card span-12" style="display:none; margin-top:16px">
+        <div class="row" style="justify-content:space-between; align-items:center">
+          <h3>Selected Session</h3>
+          <div class="row" style="gap:8px; align-items:center">
+            <div id="selStatus" class="pill">-</div>
+            <button id="deleteSession" class="btn" style="background: var(--bad)">Delete</button>
+          </div>
+        </div>
+        <div id="selInfo" class="muted">Select a session to see details and QR.</div>
+        <div id="selBody" style="display:none; margin-top:10px">
+          <div class="row" style="gap:12px; flex-wrap:wrap">
+            <div>
+              <div class="muted">Session ID</div>
+              <div id="selId" style="font-family:ui-monospace,Menlo,monospace"></div>
+            </div>
+            <div>
+              <div class="muted">Name</div>
+              <div id="selName"></div>
+            </div>
+            <div>
+              <div class="muted">API Key</div>
+              <div id="selApi" style="font-family:ui-monospace,Menlo,monospace"></div>
+            </div>
+          </div>
+          <div style="margin-top:12px">
+            <h4 style="margin:0 0 8px 0">QR / Connection</h4>
+            <div id="qrBox" class="row" style="gap:12px; align-items:flex-start"></div>
+            <div class="row" style="gap:8px; margin-top:8px">
+              <button id="showQRBtn" class="btn">Show / Refresh QR</button>
+              <span class="muted">Open WhatsApp → Linked Devices and scan.</span>
+            </div>
+          </div>
+
+          <div style="margin-top:18px">
+            <h4 style="margin:0 0 8px 0">API Playground</h4>
+            <p class="muted">This section exposes all supported APIs with forms and ready-to-copy cURL examples. Use your selected session's API Key for per-session endpoints, or the unified Bearer endpoint.</p>
+
+            <div class="grid">
+              <div class="card span-6">
+                <h3>Text Message</h3>
+                <div class="row" style="gap:8px"><input id="ap_toText" placeholder="9053XXXXXXX or chatId" style="flex:1" /></div>
+                <div style="margin-top:6px"><input id="ap_msgText" placeholder="Message..." style="width:100%" /></div>
+                <div class="row" style="gap:8px; margin-top:8px">
+                  <button id="ap_sendText" class="btn">Send</button>
+                  <button id="ap_copyCurlText" class="btn">Copy cURL</button>
+                </div>
+                <div id="ap_textResp" class="muted" style="margin-top:6px"></div>
+              </div>
+
+              <div class="card span-6">
+                <h3>Media Message</h3>
+                <div class="row" style="gap:8px"><input id="ap_toMedia" placeholder="9053XXXXXXX or chatId" style="flex:1" /></div>
+                <div class="row" style="gap:8px; margin-top:6px"><input id="ap_mediaFile" type="file" /><input id="ap_caption" placeholder="Caption (optional)" style="flex:1" /></div>
+                <div class="row" style="gap:8px; margin-top:8px">
+                  <button id="ap_sendMedia" class="btn">Send</button>
+                  <button id="ap_copyCurlMedia" class="btn">Copy cURL</button>
+                </div>
+                <div id="ap_mediaResp" class="muted" style="margin-top:6px"></div>
+              </div>
+
+              <div class="card span-6">
+                <h3>Sticker</h3>
+                <div class="row" style="gap:8px"><input id="ap_toSticker" placeholder="9053XXXXXXX or chatId" style="flex:1" /></div>
+                <div class="row" style="gap:8px; margin-top:6px"><input id="ap_stickerFile" type="file" accept="image/*" /><input id="ap_stickerAuthor" placeholder="Author (opt)" /><input id="ap_stickerName" placeholder="Name (opt)" /></div>
+                <div class="row" style="gap:8px; margin-top:8px">
+                  <button id="ap_sendSticker" class="btn">Send</button>
+                  <button id="ap_copyCurlSticker" class="btn">Copy cURL</button>
+                </div>
+                <div id="ap_stickerResp" class="muted" style="margin-top:6px"></div>
+              </div>
+
+              <div class="card span-6">
+                <h3>Location</h3>
+                <div class="row" style="gap:8px"><input id="ap_toLoc" placeholder="9053XXXXXXX or chatId" style="flex:1" /><input id="ap_lat" placeholder="Lat" /><input id="ap_lng" placeholder="Lng" /></div>
+                <div style="margin-top:6px"><input id="ap_locDesc" placeholder="Description (opt)" style="width:100%" /></div>
+                <div class="row" style="gap:8px; margin-top:8px">
+                  <button id="ap_sendLoc" class="btn">Send</button>
+                  <button id="ap_copyCurlLoc" class="btn">Copy cURL</button>
+                </div>
+                <div id="ap_locResp" class="muted" style="margin-top:6px"></div>
+              </div>
+
+              <div class="card span-6">
+                <h3>Poll</h3>
+                <div class="row" style="gap:8px"><input id="ap_toPoll" placeholder="9053XXXXXXX or chatId" style="flex:1" /></div>
+                <div class="row" style="gap:8px; margin-top:6px"><input id="ap_pollQ" placeholder="Question" style="flex:1" /></div>
+                <div class="row" style="gap:8px; margin-top:6px"><input id="ap_pollOpts" placeholder="Options (comma separated)" style="flex:1" /><label class="row" style="gap:6px"><input id="ap_pollMulti" type="checkbox" style="width:auto" />Multi</label></div>
+                <div class="row" style="gap:8px; margin-top:8px">
+                  <button id="ap_sendPoll" class="btn">Send</button>
+                  <button id="ap_copyCurlPoll" class="btn">Copy cURL</button>
+                </div>
+                <div id="ap_pollResp" class="muted" style="margin-top:6px"></div>
+              </div>
+
+              <div class="card span-6">
+                <h3>React to Message</h3>
+                <div class="row" style="gap:8px"><input id="ap_msgId" placeholder="message._serialized" style="flex:1" /><input id="ap_emoji" placeholder="👍 😀 🔥" /></div>
+                <div class="row" style="gap:8px; margin-top:8px">
+                  <button id="ap_sendReact" class="btn">Send</button>
+                  <button id="ap_copyCurlReact" class="btn">Copy cURL</button>
+                </div>
+                <div id="ap_reactResp" class="muted" style="margin-top:6px"></div>
+              </div>
+
+              <div class="card span-6">
+                <h3>Group Management</h3>
+                <div style="font-weight:600; margin-top:4px">Create Group</div>
+                <div class="row" style="gap:8px; margin-top:6px"><input id="ap_gName" placeholder="Group name" style="flex:1" /><input id="ap_gParts" placeholder="Participants (9053...,9053...)" style="flex:1" /></div>
+                <div class="row" style="gap:8px; margin-top:6px"><button id="ap_gCreate" class="btn">Create</button><button id="ap_copyCurlGCreate" class="btn">Copy cURL</button></div>
+                <div id="ap_gCreateResp" class="muted" style="margin-top:6px"></div>
+
+                <div style="font-weight:600; margin-top:10px">Members & Admin</div>
+                <div class="row" style="gap:8px; margin-top:6px"><input id="ap_gId" placeholder="Group ID (..@g.us)" style="flex:1" /><input id="ap_gParts2" placeholder="Participants (9053...,9053...)" style="flex:1" /></div>
+                <div class="row" style="gap:8px; margin-top:6px">
+                  <button id="ap_gAdd" class="btn">Add</button>
+                  <button id="ap_gRemove" class="btn">Remove</button>
+                  <button id="ap_gPromote" class="btn">Promote</button>
+                  <button id="ap_gDemote" class="btn">Demote</button>
+                </div>
+                <div class="row" style="gap:8px; margin-top:6px">
+                  <button id="ap_copyCurlGAdd" class="btn">cURL Add</button>
+                  <button id="ap_copyCurlGRemove" class="btn">cURL Remove</button>
+                  <button id="ap_copyCurlGPromote" class="btn">cURL Promote</button>
+                  <button id="ap_copyCurlGDemote" class="btn">cURL Demote</button>
+                </div>
+                <div id="ap_gMembersResp" class="muted" style="margin-top:6px"></div>
+
+                <div style="font-weight:600; margin-top:10px">Invite Link</div>
+                <div class="row" style="gap:8px; margin-top:6px"><input id="ap_gId2" placeholder="Group ID (..@g.us)" style="flex:1" />
+                  <button id="ap_gInvite" class="btn">Get Link</button>
+                  <button id="ap_gRevoke" class="btn">Revoke</button>
+                  <button id="ap_copyCurlGInvite" class="btn">cURL Get</button>
+                  <button id="ap_copyCurlGRevoke" class="btn">cURL Revoke</button>
+                </div>
+                <div id="ap_gInviteResp" class="muted" style="margin-top:6px"></div>
+              </div>
+
+              <div class="card span-6">
+                <h3>Chat & Contact</h3>
+                <div style="font-weight:600; margin-top:4px">Mute/Unmute Chat</div>
+                <div class="row" style="gap:8px; margin-top:6px"><input id="ap_chatId" placeholder="chatId (9053...@c.us / ...@g.us)" style="flex:1" /><input id="ap_muteMs" placeholder="ms (opt)" /></div>
+                <div class="row" style="gap:8px; margin-top:6px"><button id="ap_chatMute" class="btn">Mute</button><button id="ap_chatUnmute" class="btn">Unmute</button><button id="ap_copyCurlMute" class="btn">cURL</button></div>
+                <div id="ap_chatResp" class="muted" style="margin-top:6px"></div>
+
+                <div style="font-weight:600; margin-top:10px">Block/Unblock</div>
+                <div class="row" style="gap:8px; margin-top:6px"><input id="ap_contactId" placeholder="9053... or 9053...@c.us" style="flex:1" /><button id="ap_block" class="btn">Block</button><button id="ap_unblock" class="btn">Unblock</button><button id="ap_copyCurlBlock" class="btn">cURL</button></div>
+                <div id="ap_blockResp" class="muted" style="margin-top:6px"></div>
+
+                <div style="font-weight:600; margin-top:10px">Profile Info</div>
+                <div class="row" style="gap:8px; margin-top:6px"><input id="ap_profileId" placeholder="9053... or chatId" style="flex:1" /><button id="ap_profileGet" class="btn">Get</button><button id="ap_copyCurlProfile" class="btn">cURL</button></div>
+                <pre id="ap_profileResp" class="muted" style="white-space:pre-wrap"></pre>
+              </div>
+
+              <div class="card span-12">
+                <h3>Unified Bearer Endpoint cURL</h3>
+                <pre id="ap_curlUnified" style="white-space:pre-wrap; font-family:ui-monospace,Menlo,monospace"></pre>
+                <button id="ap_copyCurlUnified" class="btn">Copy</button>
+                <p class="muted" style="margin-top:8px">This endpoint uses Authorization: Bearer &lt;api_key&gt; and does not require sessionId in the URL.</p>
+              </div>
+
+              <div class="card span-12">
+                <h3>Kanallar</h3>
+                <p class="muted">Channel chats are supported: use the channel chatId in the To field with Text/Media forms above. Library support may vary over time.</p>
+              </div>
+
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="view_reminders" class="container" style="display:none">
+      <div class="grid">
+        <div class="card span-6">
+          <h3>Create Reminder</h3>
+          <div class="row" style="gap:8px; margin-top:6px">
+            <select id="rm_session" style="flex:1"></select>
+          </div>
+          <div class="row" style="gap:8px; margin-top:6px">
+            <input id="rm_recipient" placeholder="Recipient (9053... or chatId)" style="flex:1" />
+          </div>
+          <div class="row" style="gap:8px; margin-top:6px">
+            <input id="rm_message" placeholder="Message" style="flex:1" />
+          </div>
+          <div class="row" style="gap:8px; margin-top:6px">
+            <input id="rm_date" type="date" />
+            <input id="rm_time" type="time" />
+            <select id="rm_tz">
+              <option value="Europe/Istanbul">Europe/Istanbul (UTC+3)</option>
+              <option value="UTC">UTC</option>
+            </select>
+          </div>
+          <div class="row" style="gap:8px; margin-top:6px">
+            <label class="muted">Repeat</label>
+            <select id="rm_repeat">
+              <option value="none">None</option>
+              <option value="daily">Every day</option>
+              <option value="weekly">Every week</option>
+            </select>
+          </div>
+          <div class="row" style="gap:8px; margin-top:10px">
+            <button id="rm_create" class="btn primary">Create</button>
+          </div>
+          <div id="rm_create_resp" class="muted" style="margin-top:8px"></div>
+        </div>
+
+        <div class="card span-6">
+          <h3>My Reminders</h3>
+          <div id="rm_list" class="list"></div>
+          <div id="rm_empty" class="empty" style="display:none">No reminders yet.</div>
+        </div>
+      </div>
+    </div>
+
+    <div id="view_subscription" class="container" style="display:none">
+      <div class="grid">
+        <div class="card span-8">
+          <h3>Plans</h3>
+          <p class="muted">Membership plans will be managed here. Coming soon.</p>
+        </div>
+        <div class="card span-4">
+          <h3>Actions</h3>
+          <button class="btn">View Plans</button>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<script src="/assets/app.js"></script>
+</body>
+</html>
