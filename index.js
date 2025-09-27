@@ -28,9 +28,15 @@ const HCAPTCHA_SECRET = process.env.HCAPTCHA_SECRET || '';
 const SIGNUP_DAILY_LIMIT = parseInt(process.env.SIGNUP_DAILY_LIMIT || '5', 10);
 const SESSION_BASE = process.env.SESSION_DIR || path.join(process.cwd(), 'sessions');
 const supabase = SUPABASE_URL && SUPABASE_ANON_KEY ? createClient(SUPABASE_URL, SUPABASE_ANON_KEY) : null;
+if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
+  console.warn('[WARN] Supabase not fully configured: SUPABASE_URL or SUPABASE_ANON_KEY missing. Auth-protected routes will fail.');
+}
 
 // Webhook queue setup
 const WEBHOOK_QUEUE_NAME = process.env.WEBHOOK_QUEUE_NAME || 'webhooks';
+if (!process.env.REDIS_URL) {
+  console.warn('[WARN] REDIS_URL is not set; webhook queue will fail to connect. Set REDIS_URL for BullMQ.');
+}
 const webhookQueue = makeQueue(WEBHOOK_QUEUE_NAME);
 async function enqueueWebhook(sessionId, event, data) {
   const payload = { sessionId, event, data, ts: Date.now() };
@@ -54,21 +60,6 @@ const randomKey = (len = 24) => crypto.randomBytes(len).toString('hex');
 const hmac = (secret, bodyStr) =>
   !secret ? '' : crypto.createHmac('sha256', secret).update(bodyStr, 'utf8').digest('hex');
 
-async function postWebhook(sessionId, event, data) {
-  const s = await DB.get(sessionId);
-  if (!s?.webhook_url) return;
-  const payload = { sessionId, event, data, ts: Date.now() };
-  const body = JSON.stringify(payload);
-  const sig = hmac(s.webhook_secret, body);
-  try {
-    await axios.post(s.webhook_url, payload, {
-      timeout: 10000,
-      headers: { 'Content-Type': 'application/json', ...(sig ? { 'X-Signature': sig } : {}) }
-    });
-  } catch (e) {
-    console.error('Webhook fail:', sessionId, e?.response?.status || e?.message);
-  }
-}
 
 async function createSession({ id, name, userId }) {
   const client = new Client({
@@ -669,8 +660,22 @@ app.post('/test/webhook', async (req, res) => {
 });
 
 app.get('/health', async (req, res) => {
-  const rows = await DB.list();
-  res.json({ ok: true, sessions: rows.length, live: clients.size });
+  try {
+    const rows = await DB.list();
+    let q = null;
+    try {
+      const waiting = await webhookQueue.getWaitingCount();
+      const active = await webhookQueue.getActiveCount();
+      const delayed = await webhookQueue.getDelayedCount();
+      const failed = await webhookQueue.getFailedCount();
+      q = { waiting, active, delayed, failed };
+    } catch (_) {
+      q = null;
+    }
+    res.json({ ok: true, sessions: rows.length, live: clients.size, queue: q });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: e?.message || 'health error' });
+  }
 });
 app.get('/', (req, res) => {
   const file = path.join(__dirname, 'public', 'login.html');
