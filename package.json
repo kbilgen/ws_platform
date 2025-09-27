@@ -8,14 +8,17 @@
     "start": "node index.js",
     "start:api": "node index.js",
     "dev": "npx nodemon index.js",
-    "start:worker": "node worker.js"
-    },
+    "start:worker": "node worker.js",
+    "start:session": "node session.js"
+  },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.4",
     "axios": "^1.7.2",
     "body-parser": "^1.20.2",
+    "bullmq": "^5.8.3",
     "dotenv": "^16.4.5",
     "express": "^4.19.2",
+    "ioredis": "^5.3.2",
     "pg": "^8.12.0",
     "qrcode": "^1.5.3",
     "whatsapp-web.js": "^1.25.0"

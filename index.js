@@ -7,6 +7,7 @@ const bodyParser = require('body-parser');
 const path = require('path');
 const crypto = require('crypto');
 const axios = require('axios');
+const { makeQueue } = require('./queue');
 const qrcode = require('qrcode');
 const fs = require('fs');
 const { EventEmitter } = require('events');
@@ -27,6 +28,20 @@ const HCAPTCHA_SECRET = process.env.HCAPTCHA_SECRET || '';
 const SIGNUP_DAILY_LIMIT = parseInt(process.env.SIGNUP_DAILY_LIMIT || '5', 10);
 const SESSION_BASE = process.env.SESSION_DIR || path.join(process.cwd(), 'sessions');
 const supabase = SUPABASE_URL && SUPABASE_ANON_KEY ? createClient(SUPABASE_URL, SUPABASE_ANON_KEY) : null;
+
+// Webhook queue setup
+const WEBHOOK_QUEUE_NAME = process.env.WEBHOOK_QUEUE_NAME || 'webhooks';
+const webhookQueue = makeQueue(WEBHOOK_QUEUE_NAME);
+async function enqueueWebhook(sessionId, event, data) {
+  const payload = { sessionId, event, data, ts: Date.now() };
+  await webhookQueue.add('deliver', payload, {
+    attempts: parseInt(process.env.WEBHOOK_ATTEMPTS || '5', 10),
+    backoff: { type: 'exponential', delay: parseInt(process.env.WEBHOOK_BACKOFF_MS || '2000', 10) },
+    removeOnComplete: 1000,
+    removeOnFail: false,
+    timeout: parseInt(process.env.WEBHOOK_TIMEOUT_MS || '10000', 10),
+  });
+}
 
 // Ensure LocalAuth base directory exists (for persistence across deployments)
 try { fs.mkdirSync(SESSION_BASE, { recursive: true }); console.log('[BOOT] LocalAuth base directory:', SESSION_BASE); } catch (e) { console.error('Failed to ensure SESSION_BASE dir:', e?.message || e); }
@@ -76,7 +91,7 @@ async function createSession({ id, name, userId }) {
     if (e) { e.ready = true; e.qr = null; }
     await DB.setStatus(id, 'ready');
     events.emit('status', { sessionId: id, status: 'ready' });
-    await postWebhook(id, 'ready', {});
+    await enqueueWebhook(id, 'ready', {});
   });
 
   client.on('disconnected', async (reason) => {
@@ -84,7 +99,7 @@ async function createSession({ id, name, userId }) {
     if (e) e.ready = false;
     await DB.setStatus(id, 'disconnected');
     events.emit('status', { sessionId: id, status: 'disconnected', reason });
-    await postWebhook(id, 'disconnected', { reason });
+    await enqueueWebhook(id, 'disconnected', { reason });
     client.initialize(); // auto-reconnect
   });
 
@@ -94,7 +109,7 @@ async function createSession({ id, name, userId }) {
       from: msg.from, to: msg.to, body: msg.body, isGroup: msg.isGroup, timestamp: msg.timestamp
     };
     events.emit('message', payload);
-    await postWebhook(id, 'message', payload);
+    await enqueueWebhook(id, 'message', payload);
   });
 
   client.initialize();
@@ -642,6 +657,17 @@ app.post('/api/send-message', bearerKeyAuth, async (req, res) => {
 });
 
 // Health & root
+// Test endpoint to enqueue a sample webhook (optional)
+app.post('/test/webhook', async (req, res) => {
+  try {
+    const { sessionId = 'test-session' } = req.body || {};
+    await enqueueWebhook(sessionId, 'test', { hello: 'world' });
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: e?.message || 'enqueue failed' });
+  }
+});
+
 app.get('/health', async (req, res) => {
   const rows = await DB.list();
   res.json({ ok: true, sessions: rows.length, live: clients.size });
