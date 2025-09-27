@@ -39,6 +39,10 @@ if (!process.env.REDIS_URL) {
 }
 const webhookQueue = makeQueue(WEBHOOK_QUEUE_NAME);
 async function enqueueWebhook(sessionId, event, data) {
+  if (!sessionId) {
+    console.warn('[enqueueWebhook] missing sessionId for event:', event);
+    return; // job ekleme
+  }
   const payload = { sessionId, event, data, ts: Date.now() };
   await webhookQueue.add('deliver', payload, {
     attempts: parseInt(process.env.WEBHOOK_ATTEMPTS || '5', 10),
