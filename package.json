@@ -6,8 +6,10 @@
   "license": "Apache-2.0",
   "scripts": {
     "start": "node index.js",
-    "dev": "npx nodemon index.js"
-  },
+    "start:api": "node index.js",
+    "dev": "npx nodemon index.js",
+    "start:worker": "node worker.js"
+    },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.4",
     "axios": "^1.7.2",
